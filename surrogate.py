@@ -1,14 +1,7 @@
 import os.path
-import pickle
-import time
 import warnings
-from copy import deepcopy
-
-import lightgbm as lgb
 
 # import shapreg  # https://github.com/iancovert/shapley-regression
-import numpy as np
-import shap  # https://github.com/slundberg/shap
 import torch
 import torch.nn as nn
 
@@ -16,27 +9,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from opacus import PrivacyEngine
-from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus.validators import ModuleValidator
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from torch.utils.data import (
-    BatchSampler,
-    DataLoader,
-    Dataset,
-    RandomSampler,
-    TensorDataset,
-)
 from tqdm.auto import tqdm
 
 from fastshap import KLDivLoss
-from fastshap.utils import DatasetRepeat, MaskLayer1d, UniformSampler
+from fastshap.utils import MaskLayer1d
+from utils import prepare_data
 
 warnings.simplefilter("ignore")
 import argparse
 
 import wandb
-
 from fastshap.surrogate_dp import SurrogateDP
 from fastshap.utils import setup_data
 
@@ -63,7 +46,9 @@ parser.add_argument("--clipping", type=float, default=None)
 parser.add_argument("--epsilon", type=float, default=None)
 parser.add_argument("--project_name", type=str, default=None)
 parser.add_argument("--save_model", type=bool, default=False)
-parser.add_argument("--original_model", type=str, default="")
+parser.add_argument("--model_name", type=str, default="")
+parser.add_argument("--surrogate_name", type=str, default="")
+parser.add_argument("--dataset_name", type=str, default="adult")
 
 # arguments for the surrogate
 parser.add_argument("--validation_samples", type=int, default=None)
@@ -94,27 +79,27 @@ def load_model(model_name):
     return model
 
 
-def prepare_data():
-    rnd = int(str(time.time()).split(".")[1]) * 42
+# def prepare_data():
+#     rnd = int(str(time.time()).split(".")[1]) * 42
 
-    # Load and split data
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        *shap.datasets.adult(), test_size=0.2, random_state=42
-    )
-    X_train, X_val, Y_train, Y_val = train_test_split(
-        X_train, Y_train, test_size=0.2, random_state=rnd
-    )
+#     # Load and split data
+#     X_train, X_test, Y_train, Y_test = train_test_split(
+#         *shap.datasets.adult(), test_size=0.2, random_state=42
+#     )
+#     X_train, X_val, Y_train, Y_val = train_test_split(
+#         X_train, Y_train, test_size=0.2, random_state=rnd
+#     )
 
-    # Data scaling
-    num_features = X_train.shape[1]
-    feature_names = X_train.columns.tolist()
-    ss = StandardScaler()
-    ss.fit(X_train)
-    X_train = ss.transform(X_train.values)
-    X_val = ss.transform(X_val.values)
-    X_test = ss.transform(X_test.values)
+#     # Data scaling
+#     num_features = X_train.shape[1]
+#     feature_names = X_train.columns.tolist()
+#     ss = StandardScaler()
+#     ss.fit(X_train)
+#     X_train = ss.transform(X_train.values)
+#     X_val = ss.transform(X_val.values)
+#     X_test = ss.transform(X_test.values)
 
-    return X_train, X_val, X_test, Y_train, Y_val, Y_test, num_features, feature_names
+#     return X_train, X_val, X_test, Y_train, Y_val, Y_test, num_features, feature_names
 
 
 def get_surrogate_model():
@@ -140,13 +125,25 @@ def get_optimizer(optimizer_name, model, lr):
 
 
 args = parser.parse_args()
-X_train, X_val, X_test, Y_train, Y_val, Y_test, num_features, feature_names = (
-    prepare_data()
-)
-if args.original_model == "model_no_dp":
-    model = load_model("../train_model/model_no_dp.pth")
-else:
-    model = load_model("../train_model/model_DP.pth")
+
+
+(
+    _,
+    _,
+    _,
+    X_train,
+    X_val,
+    X_test,
+    Y_train,
+    Y_val,
+    Y_test,
+    num_features,
+    feature_names,
+) = prepare_data(args)
+
+print("FEATURES: ", num_features)
+
+model = load_model(args.model_name)
 train_loader, random_sampler, batch_sampler = setup_data(
     train_data=X_train, batch_size=args.batch_size
 )
@@ -212,7 +209,7 @@ surrogate.train_original_model(
 
 if args.save_model:
     surr.cpu()
-    torch.save(surr, "surrogate.pt")
+    torch.save(surr, f"{args.surrogate_name}.pt")
 
 
 # Save surrogate

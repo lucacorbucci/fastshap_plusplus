@@ -12,21 +12,14 @@ run_sweep_and_agent () {
   SWEEP_ID=$(awk '/wandb agent/{ match($0, /wandb agent (.+)/, arr); print arr[1]; }' temp_output.txt)
 
   # Remove the temporary output file
-  rm temp_output.txt
+#   rm temp_output.txt
   
   # Run the wandb agent command
   poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 50
 }
 
-# run_sweep_and_agent "surrogate"
-# run_sweep_and_agent "explainer"
-# run_sweep_and_agent "explainer_nodp"
-# run_sweep_and_agent "explainer_1"
-# run_sweep_and_agent "explainer_2"
-# run_sweep_and_agent "explainer_5"
-
-run_sweep_and_agent "explainer_1_surrogate_5"
-run_sweep_and_agent "explainer_2_surrogate_5"
-# run_sweep_and_agent "explainer_5_surrogate_5"
-# run_sweep_and_agent "explainer_epsilon_100"
-# 
+# run_sweep_and_agent "explainer_DP"
+run_sweep_and_agent "dutch_DP_1"
+# run_sweep_and_agent "dutch_DP_5"
+# run_sweep_and_agent "dutch_DP_05"
+# run_sweep_and_agent "dutch_NO_DP"

@@ -18,9 +18,6 @@ parameters:
   node_shuffle_seed:
     min: 1
     max: 4294967294
-  clipping:
-    min: 1.0
-    max: 20.0
 
 command:
   - ${env}

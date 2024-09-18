@@ -16,27 +16,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from opacus import PrivacyEngine
-from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus.validators import ModuleValidator
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import (
-    BatchSampler,
     DataLoader,
     Dataset,
-    RandomSampler,
     TensorDataset,
 )
-from tqdm.auto import tqdm
 
-from fastshap import KLDivLoss
-from fastshap.utils import DatasetRepeat, MaskLayer1d, ShapleySampler, UniformSampler
+from fastshap.utils import DatasetRepeat, ShapleySampler
+from utils import prepare_data
 
 warnings.simplefilter("ignore")
 import argparse
 
 import wandb
-
 from fastshap.fastshap_dp import (
     FastSHAP,
     calculate_grand_coalition,
@@ -62,6 +57,7 @@ parser.add_argument("--normalization", type=str, default="additive")
 parser.add_argument("--num_samples", type=int, default=32)
 parser.add_argument("--surrogate", type=str, default="")
 parser.add_argument("--model_name", type=str, default="")
+parser.add_argument("--dataset_name", type=str, default="adult")
 
 
 def get_optimizer(optimizer_name, model, lr):
@@ -73,25 +69,25 @@ def get_optimizer(optimizer_name, model, lr):
         raise ValueError("Optimizer not found")
 
 
-def prepare_data():
-    # Load and split data
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        *shap.datasets.adult(), test_size=0.2, random_state=42
-    )
-    X_train, X_val, Y_train, Y_val = train_test_split(
-        X_train, Y_train, test_size=0.2, random_state=0
-    )
+# def prepare_data():
+#     # Load and split data
+#     X_train, X_test, Y_train, Y_test = train_test_split(
+#         *shap.datasets.adult(), test_size=0.2, random_state=42
+#     )
+#     X_train, X_val, Y_train, Y_val = train_test_split(
+#         X_train, Y_train, test_size=0.2, random_state=0
+#     )
 
-    # Data scaling
-    num_features = X_train.shape[1]
-    feature_names = X_train.columns.tolist()
-    ss = StandardScaler()
-    ss.fit(X_train)
-    X_train = ss.transform(X_train.values)
-    X_val = ss.transform(X_val.values)
-    X_test = ss.transform(X_test.values)
+#     # Data scaling
+#     num_features = X_train.shape[1]
+#     feature_names = X_train.columns.tolist()
+#     ss = StandardScaler()
+#     ss.fit(X_train)
+#     X_train = ss.transform(X_train.values)
+#     X_val = ss.transform(X_val.values)
+#     X_test = ss.transform(X_test.values)
 
-    return X_train, X_val, X_test, Y_train, Y_val, Y_test, num_features, feature_names
+#     return X_train, X_val, X_test, Y_train, Y_val, Y_test, num_features, feature_names
 
 
 def prepare_dataset_for_explainer(
@@ -227,14 +223,27 @@ args = parser.parse_args()
 wandb_run = setup_wandb(args)
 
 
-surrogate = load_model(f"./{args.surrogate}.pt")
+surrogate = load_model(f"{args.surrogate}")
 
 imputer = surrogate
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-X_train, X_val, X_test, Y_train, Y_val, Y_test, num_features, feature_names = (
-    prepare_data()
-)
+
+(
+    _,
+    _,
+    _,
+    X_train,
+    X_val,
+    X_test,
+    Y_train,
+    Y_val,
+    Y_test,
+    num_features,
+    feature_names,
+) = prepare_data(args)
+
+
 train_loader, val_loader, grand_train, grand_val, null, sampler = (
     prepare_dataset_for_explainer(
         X_train,
@@ -314,5 +323,5 @@ fastshap.train(
 )
 
 if args.save_model:
-    # torch.save(fastshap, "fastshap.pt")
-    dill.dump(fastshap, open(f"./{args.model_name}.pkl", "wb"))
+    torch.save(explainer, f"./{args.model_name}.pt")
+    # dill.dump(fastshap, open(f"./{args.model_name}.pkl", "wb"))

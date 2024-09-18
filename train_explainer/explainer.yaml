@@ -15,12 +15,6 @@ parameters:
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
-  node_shuffle_seed:
-    min: 1
-    max: 4294967294
-  clipping:
-    min: 1.0
-    max: 20.0
   validation_samples:
     min: 5
     max: 100
@@ -40,9 +34,9 @@ command:
   - python
   - ${program}
   - ${args}
-  - --epsilon
-  - 0.5
   - --sweep
   - True
   - --project_name
-  - Private_Fast_Shap
+  - private-fastshap
+  - --surrogate
+  - ../train_surrogate/surrogate_agosto.pt

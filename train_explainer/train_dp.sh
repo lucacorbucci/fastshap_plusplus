@@ -1,1 +1,0 @@
-poetry run python /home/lcorbucci/private_fast_shap/train_explainer/../explainer.py --batch_size=1367 --clipping=12.480594849585929 --epochs=18 --lr=0.09207150809937208 --node_shuffle_seed=4283413194 --normalization=multiplicative --num_samples=175 --optimizer=sgd --validation_samples=65 --epsilon 0.5 --sweep True --project_name Private_Fast_Shap  --save_model True

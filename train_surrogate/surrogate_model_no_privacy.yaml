@@ -12,9 +12,6 @@ parameters:
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
-  clipping:
-    min: 1.0
-    max: 20.0
   validation_samples:
     min: 5
     max: 100

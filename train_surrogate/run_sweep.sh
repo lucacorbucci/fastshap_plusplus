@@ -22,4 +22,7 @@ run_sweep_and_agent () {
 # run_sweep_and_agent "no_DP"
 # run_sweep_and_agent "surrogate_eps_5"
 # run_sweep_and_agent "surrogate_eps_100"
-run_sweep_and_agent "surrogate_model_no_privacy"
+# run_sweep_and_agent "surrogate_DP"
+# run_sweep_and_agent "surrogate_DP_05"
+# run_sweep_and_agent "surrogate_DP_5"
+run_sweep_and_agent "surrogate_DP_1_dutch"
