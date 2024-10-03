@@ -1,0 +1,1 @@
+poetry run python /home/lcorbucci/private_fast_shap/train_model/./train_adult.py --batch_size=1295 --lr=0.06916620785860836 --node_shuffle_seed=3038821704 --optimizer=adam --epochs 10 --project_name Private_Fast_Shap --save_model True
