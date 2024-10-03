@@ -1,1 +1,0 @@
-poetry run python /home/lcorbucci/private_fast_shap/original/./train_surrogate.py --batch_size=1214 --epochs=59 --lr=0.02397116852925128 --optimizer=adam  --project_name Private_Fast_Shap  --validation_batch_size=759 --validation_samples=71 --test True
