@@ -8,7 +8,7 @@ early_terminate:
   min_iter: 3
 parameters:
   batch_size:
-    min: 32
+    min: 256
     max: 2048
   lr:
     min: 0.0001
@@ -23,7 +23,7 @@ parameters:
     max: 10000
   epochs:
     min: 10
-    max: 100
+    max: 80
 
 command:
   - ${env}

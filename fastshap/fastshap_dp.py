@@ -88,7 +88,14 @@ def evaluate_explainer(
 
 
 def calculate_grand_coalition(
-    dataset, imputer, batch_size, link, device, num_workers, num_features
+    dataset,
+    imputer,
+    batch_size,
+    link,
+    device,
+    num_workers,
+    num_features,
+    image_dataset,
 ):
     """
     Calculate the value of grand coalition for each input.
@@ -114,7 +121,10 @@ def calculate_grand_coalition(
     with torch.no_grad():
         grand = []
         for (x,) in loader:
-            output = imputer((x.to(device), ones[: len(x)].to(device)))
+            if image_dataset:
+                output = imputer(x.to(device), ones[: len(x)].to(device))
+            else:
+                output = imputer((x.to(device), ones[: len(x)].to(device)))
             grand.append(link(output))
 
         # Concatenate and return.
@@ -135,6 +145,7 @@ def generate_validation_data(
     device,
     num_workers,
     num_players,
+    image_dataset,
 ):
     """
     Generate coalition values for validation dataset.
@@ -169,7 +180,10 @@ def generate_validation_data(
         values = []
 
         for x, S in loader:
-            values.append(link(imputer((x.to(device), S.to(device)))).cpu().data)
+            if image_dataset:
+                values.append(link(imputer(x.to(device), S.to(device))).cpu().data)
+            else:
+                values.append(link(imputer((x.to(device), S.to(device)))).cpu().data)
 
         val_values.append(torch.cat(values))
 
@@ -281,6 +295,7 @@ class FastSHAP:
         optimizer=None,
         wandb=None,
         sampler=None,
+        image_dataset=False,
     ):
         """
         Train explainer model.
@@ -365,7 +380,11 @@ class FastSHAP:
                     )
 
                     with torch.no_grad():
-                        values = link(imputer((x_tiled, S)))
+                        if image_dataset:
+                            values = link(imputer(x_tiled, S))
+
+                        else:
+                            values = link(imputer((x_tiled, S)))
 
                     # Evaluate explainer.
                     pred, total = evaluate_explainer(
@@ -389,42 +408,22 @@ class FastSHAP:
                     optimizer.zero_grad()
 
                 # Evaluate validation loss.
-                explainer.eval()
-                val_loss = (
-                    num_players
-                    * validate(
-                        val_loader,
-                        imputer,
-                        explainer,
-                        null,
-                        link,
-                        normalization,
-                        num_players=self.num_players,
-                    ).item()
-                )
-                wandb.log({"validation_loss": val_loss, "epoch": epoch})
-                explainer.train()
-
-                # Save loss, print progress.
-                # if verbose:
-                #     print("----- Epoch = {} -----".format(epoch + 1))
-                #     print("Val loss = {:.6f}".format(val_loss))
-                #     print("")
-                # scheduler.step(val_loss)
-                # self.loss_list.append(val_loss)
-
-                # # Check for convergence.
-                # if self.loss_list[-1] < best_loss:
-                #     best_loss = self.loss_list[-1]
-                #     best_epoch = epoch
-                #     best_model = deepcopy(explainer)
-                #     if verbose:
-                #         print("New best epoch, loss = {:.6f}".format(val_loss))
-                #         print("")
-                # elif epoch - best_epoch == lookback:
-                #     if verbose:
-                #         print("Stopping early at epoch = {}".format(epoch))
-                #     break
+                if val_loader is not None:
+                    explainer.eval()
+                    val_loss = (
+                        num_players
+                        * validate(
+                            val_loader,
+                            imputer,
+                            explainer,
+                            null,
+                            link,
+                            normalization,
+                            num_players=self.num_players,
+                        ).item()
+                    )
+                    wandb.log({"validation_loss": val_loss, "epoch": epoch})
+                    explainer.train()
 
         # # Copy best model.
         # for param, best_param in zip(explainer.parameters(), best_model.parameters()):

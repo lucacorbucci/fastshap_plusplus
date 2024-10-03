@@ -1,23 +1,30 @@
+from copy import deepcopy
+
+import numpy as np
 import torch
 import torch.optim as optim
-import numpy as np
-from torch.utils.data import Dataset, TensorDataset, DataLoader
-from torch.utils.data import RandomSampler, BatchSampler
-from fastshap.utils import UniformSampler, DatasetRepeat
-from copy import deepcopy
-from tqdm.auto import tqdm
-from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
+from opacus.utils.batch_memory_manager import BatchMemoryManager
+from torch.utils.data import (
+    BatchSampler,
+    DataLoader,
+    Dataset,
+    RandomSampler,
+    TensorDataset,
+)
+from tqdm.auto import tqdm
+
+from fastshap.utils import DatasetRepeat, UniformSampler
 
 
 def validate(surrogate, loss_fn, data_loader):
-    '''
+    """
     Calculate mean validation loss.
 
     Args:
       loss_fn: loss function.
       data_loader: data loader.
-    '''
+    """
     with torch.no_grad():
         # Setup.
         device = next(surrogate.surrogate.parameters()).device
@@ -39,21 +46,21 @@ def validate(surrogate, loss_fn, data_loader):
 
 
 def generate_labels(dataset, model, batch_size):
-    '''
+    """
     Generate prediction labels for a set of inputs.
 
     Args:
       dataset: dataset object.
       model: predictive model.
       batch_size: minibatch size.
-    '''
+    """
     with torch.no_grad():
         # Setup.
         preds = []
         if isinstance(model, torch.nn.Module):
             device = next(model.parameters()).device
         else:
-            device = torch.device('cpu')
+            device = torch.device("cpu")
         loader = DataLoader(dataset, batch_size=batch_size)
 
         for (x,) in loader:
@@ -64,14 +71,14 @@ def generate_labels(dataset, model, batch_size):
 
 
 class SurrogateDP:
-    '''
+    """
     Wrapper around surrogate model.
 
     Args:
       surrogate: surrogate model.
       num_features: number of features.
       groups: (optional) feature groups, represented by a list of lists.
-    '''
+    """
 
     def __init__(self, surrogate, num_features, groups=None):
         # Store surrogate model.
@@ -92,27 +99,30 @@ class SurrogateDP:
             self.num_players = len(groups)
             device = next(surrogate.parameters()).device
             self.groups_matrix = torch.zeros(
-                len(groups), num_features, dtype=torch.float32, device=device)
+                len(groups), num_features, dtype=torch.float32, device=device
+            )
             for i, group in enumerate(groups):
                 self.groups_matrix[i, group] = 1
 
-    def train(self,
-              train_data,
-              val_data,
-              batch_size,
-              max_epochs,
-              loss_fn,
-              validation_samples=1,
-              validation_batch_size=None,
-              lr=1e-3,
-              min_lr=1e-5,
-              lr_factor=0.5,
-              lookback=5,
-              training_seed=None,
-              validation_seed=None,
-              bar=False,
-              verbose=False):
-        '''
+    def train(
+        self,
+        train_data,
+        val_data,
+        batch_size,
+        max_epochs,
+        loss_fn,
+        validation_samples=1,
+        validation_batch_size=None,
+        lr=1e-3,
+        min_lr=1e-5,
+        lr_factor=0.5,
+        lookback=5,
+        training_seed=None,
+        validation_seed=None,
+        bar=False,
+        verbose=False,
+    ):
+        """
         Train surrogate model.
 
         Args:
@@ -134,7 +144,7 @@ class SurrogateDP:
           training_seed: random seed for training.
           validation_seed: random seed for generating validation data.
           verbose: verbosity.
-        '''
+        """
         # Set up train dataset.
         if isinstance(train_data, tuple):
             x_train, y_train = train_data
@@ -145,15 +155,19 @@ class SurrogateDP:
         elif isinstance(train_data, Dataset):
             train_set = train_data
         else:
-            raise ValueError('train_data must be either tuple of tensors or a '
-                             'PyTorch Dataset')
+            raise ValueError(
+                "train_data must be either tuple of tensors or a " "PyTorch Dataset"
+            )
 
         # Set up train data loader.
         random_sampler = RandomSampler(
-            train_set, replacement=True,
-            num_samples=int(np.ceil(len(train_set) / batch_size))*batch_size)
+            train_set,
+            replacement=True,
+            num_samples=int(np.ceil(len(train_set) / batch_size)) * batch_size,
+        )
         batch_sampler = BatchSampler(
-            random_sampler, batch_size=batch_size, drop_last=True)
+            random_sampler, batch_size=batch_size, drop_last=True
+        )
         train_loader = DataLoader(train_set, batch_sampler=batch_sampler)
 
         # Set up validation dataset.
@@ -169,13 +183,13 @@ class SurrogateDP:
                 y_val = torch.tensor(y_val, dtype=torch.float32)
             x_val_repeat = x_val.repeat(validation_samples, 1)
             y_val_repeat = y_val.repeat(validation_samples, 1)
-            val_set = TensorDataset(
-                x_val_repeat, y_val_repeat, S_val)
+            val_set = TensorDataset(x_val_repeat, y_val_repeat, S_val)
         elif isinstance(val_data, Dataset):
             val_set = DatasetRepeat([val_data, TensorDataset(S_val)])
         else:
-            raise ValueError('val_data must be either tuple of tensors or a '
-                             'PyTorch Dataset')
+            raise ValueError(
+                "val_data must be either tuple of tensors or a " "PyTorch Dataset"
+            )
 
         if validation_batch_size is None:
             validation_batch_size = batch_size
@@ -186,8 +200,12 @@ class SurrogateDP:
         device = next(surrogate.parameters()).device
         optimizer = optim.Adam(surrogate.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=lr_factor, patience=lookback // 2, min_lr=min_lr,
-            verbose=verbose)
+            optimizer,
+            factor=lr_factor,
+            patience=lookback // 2,
+            min_lr=min_lr,
+            verbose=verbose,
+        )
         best_loss, _ = validate(self, loss_fn, val_loader)
         best_loss = best_loss.item()
         best_epoch = 0
@@ -199,7 +217,7 @@ class SurrogateDP:
         for epoch in range(max_epochs):
             # Batch iterable.
             if bar:
-                batch_iter = tqdm(train_loader, desc='Training epoch')
+                batch_iter = tqdm(train_loader, desc="Training epoch")
             else:
                 batch_iter = train_loader
 
@@ -248,35 +266,37 @@ class SurrogateDP:
             #     break
 
         # Clean up.
-        for param, best_param in zip(surrogate.parameters(),
-                                     best_model.parameters()):
+        for param, best_param in zip(surrogate.parameters(), best_model.parameters()):
             param.data = best_param.data
         self.loss_list = loss_list
         self.surrogate.eval()
 
-    def train_original_model(self,
-                             train_data,
-                             val_data,
-                             original_model,
-                             batch_size,
-                             max_epochs,
-                             loss_fn,
-                             train_loader, 
-                             random_sampler, 
-                             batch_sampler,
-                             validation_samples=1,
-                             validation_batch_size=None,
-                             lr=1e-3,
-                             min_lr=1e-5,
-                             lr_factor=0.5,
-                             lookback=5,
-                             training_seed=None,
-                             validation_seed=None,
-                             bar=False,
-                             verbose=False,
-                             optimizer=None,
-                             wandb=None):
-        '''
+    def train_original_model(
+        self,
+        train_data,
+        val_data,
+        test_data,
+        original_model,
+        batch_size,
+        max_epochs,
+        loss_fn,
+        train_loader,
+        random_sampler,
+        batch_sampler,
+        validation_samples=1,
+        validation_batch_size=None,
+        lr=1e-3,
+        min_lr=1e-5,
+        lr_factor=0.5,
+        lookback=5,
+        training_seed=None,
+        validation_seed=None,
+        bar=False,
+        verbose=False,
+        optimizer=None,
+        wandb=None,
+    ):
+        """
         Train surrogate model with labels provided by the original model.
 
         Args:
@@ -297,74 +317,106 @@ class SurrogateDP:
           training_seed: random seed for training.
           validation_seed: random seed for generating validation data.
           verbose: verbosity.
-        '''
+        """
         if not optimizer:
-            raise ValueError('optimizer must be provided')
-        
+            raise ValueError("optimizer must be provided")
 
         # Set up validation dataset.
         sampler = UniformSampler(self.num_players)
-        if validation_seed is not None:
-            torch.manual_seed(validation_seed)
-        S_val = sampler.sample(len(val_data) * validation_samples)
-        if validation_batch_size is None:
-            validation_batch_size = batch_size
 
-        if isinstance(val_data, np.ndarray):
-            val_data = torch.tensor(val_data, dtype=torch.float32)
+        if val_data is not None:
+            S_val = sampler.sample(len(val_data) * validation_samples)
+            if validation_batch_size is None:
+                validation_batch_size = batch_size
 
-        if isinstance(val_data, torch.Tensor):
-            # Generate validation labels.
-            y_val = generate_labels(TensorDataset(val_data), original_model,
-                                    validation_batch_size)
-            y_val_repeat = y_val.repeat(
-                validation_samples, *[1 for _ in y_val.shape[1:]])
+            if isinstance(val_data, np.ndarray):
+                val_data = torch.tensor(val_data, dtype=torch.float32)
 
-            # Create dataset.
-            val_data_repeat = val_data.repeat(validation_samples, 1)
-            val_set = TensorDataset(val_data_repeat, y_val_repeat, S_val)
-        elif isinstance(val_data, Dataset):
-            # Generate validation labels.
-            y_val = generate_labels(val_data, original_model,
-                                    validation_batch_size)
-            y_val_repeat = y_val.repeat(
-                validation_samples, *[1 for _ in y_val.shape[1:]])
+            if isinstance(val_data, torch.Tensor):
+                # Generate validation labels.
+                y_val = generate_labels(
+                    TensorDataset(val_data), original_model, validation_batch_size
+                )
+                y_val_repeat = y_val.repeat(
+                    validation_samples, *[1 for _ in y_val.shape[1:]]
+                )
 
-            # Create dataset.
-            val_set = DatasetRepeat(
-                [val_data, TensorDataset(y_val_repeat, S_val)])
-        else:
-            raise ValueError('val_data must be either tuple of tensors or a '
-                             'PyTorch Dataset')
+                # Create dataset.
+                val_data_repeat = val_data.repeat(validation_samples, 1)
+                val_set = TensorDataset(val_data_repeat, y_val_repeat, S_val)
+            elif isinstance(val_data, Dataset):
+                # Generate validation labels.
+                y_val = generate_labels(val_data, original_model, validation_batch_size)
+                y_val_repeat = y_val.repeat(
+                    validation_samples, *[1 for _ in y_val.shape[1:]]
+                )
 
-        val_loader = DataLoader(val_set, batch_size=validation_batch_size)
+                # Create dataset.
+                val_set = DatasetRepeat([val_data, TensorDataset(y_val_repeat, S_val)])
+            else:
+                raise ValueError(
+                    "val_data must be either tuple of tensors or a " "PyTorch Dataset"
+                )
+
+            val_loader = DataLoader(val_set, batch_size=validation_batch_size)
+        elif test_data is not None:
+            S_test = sampler.sample(len(test_data) * validation_samples)
+            if validation_batch_size is None:
+                validation_batch_size = batch_size
+
+            if isinstance(test_data, np.ndarray):
+                test_data = torch.tensor(test_data, dtype=torch.float32)
+
+            if isinstance(test_data, torch.Tensor):
+                # Generate validation labels.
+                y_test = generate_labels(
+                    TensorDataset(test_data), original_model, validation_batch_size
+                )
+                y_test_repeat = y_test.repeat(
+                    validation_samples, *[1 for _ in y_test.shape[1:]]
+                )
+
+                # Create dataset.
+                test_data_repeat = test_data.repeat(validation_samples, 1)
+                test_set = TensorDataset(test_data_repeat, y_test_repeat, S_test)
+            elif isinstance(test_data, Dataset):
+                # Generate test labels.
+                y_test = generate_labels(
+                    test_data, original_model, validation_batch_size
+                )
+                y_test_repeat = y_test.repeat(
+                    validation_samples, *[1 for _ in y_test.shape[1:]]
+                )
+
+                # Create dataset.
+                test_set = DatasetRepeat(
+                    [test_data, TensorDataset(y_test_repeat, S_test)]
+                )
+            else:
+                raise ValueError(
+                    "val_data must be either tuple of tensors or a " "PyTorch Dataset"
+                )
+
+            test_loader = DataLoader(test_set, batch_size=validation_batch_size)
 
         # Setup for training.
         surrogate = self.surrogate
         device = next(surrogate.parameters()).device
-        
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=lr_factor, patience=lookback // 2, min_lr=min_lr,
-            verbose=verbose)
-        best_loss, _ = validate(self, loss_fn, val_loader)
-        best_loss = best_loss.item()
-        best_epoch = 0
+
         best_model = deepcopy(surrogate)
-        loss_list = [best_loss]
         if training_seed is not None:
             torch.manual_seed(training_seed)
         MAX_PHYSICAL_BATCH_SIZE = 512
 
         for epoch in range(max_epochs):
-
             with BatchMemoryManager(
-                data_loader=train_loader, 
-                max_physical_batch_size=MAX_PHYSICAL_BATCH_SIZE, 
-                optimizer=optimizer
+                data_loader=train_loader,
+                max_physical_batch_size=MAX_PHYSICAL_BATCH_SIZE,
+                optimizer=optimizer,
             ) as memory_safe_data_loader:
                 # Batch iterable.
                 if bar:
-                    batch_iter = tqdm(memory_safe_data_loader, desc='Training epoch')
+                    batch_iter = tqdm(memory_safe_data_loader, desc="Training epoch")
                 else:
                     batch_iter = memory_safe_data_loader
 
@@ -389,49 +441,37 @@ class SurrogateDP:
                     optimizer.step()
                     optimizer.zero_grad()
 
-            # Evaluate validation loss.
-            self.surrogate.eval()
-            val_loss, fidelity = validate(self, loss_fn, val_loader)
-            val_loss.item()
-            self.surrogate.train()
-            wandb.log({"validation_loss": loss.item(), "epoch": epoch})
-            wandb.log({"fidelity": fidelity, "epoch": epoch})
-            # # Print progress.
-            # if verbose:
-            #     print('----- Epoch = {} -----'.format(epoch + 1))
-            #     print('Val loss = {:.4f}'.format(val_loss))
-            #     print('')
-            # scheduler.step(val_loss)
-            # loss_list.append(val_loss)
-
-            # # Check if best model.
-            # if val_loss < best_loss:
-            #     best_loss = val_loss
-            #     best_model = deepcopy(surrogate)
-            #     best_epoch = epoch
-            #     if verbose:
-            #         print('New best epoch, loss = {:.4f}'.format(val_loss))
-            #         print('')
-            # elif epoch - best_epoch == lookback:
-            #     if verbose:
-            #         print('Stopping early')
-            #     break
-
+            if val_data is not None:
+                # Evaluate validation loss.
+                self.surrogate.eval()
+                val_loss, fidelity = validate(self, loss_fn, val_loader)
+                val_loss.item()
+                self.surrogate.train()
+                wandb.log({"validation_loss": loss.item(), "epoch": epoch})
+                wandb.log({"validation_fidelity": fidelity, "epoch": epoch})
+            else:
+                # Evaluate test loss.
+                self.surrogate.eval()
+                test_loss, fidelity = validate(self, loss_fn, test_loader)
+                test_loss.item()
+                self.surrogate.train()
+                wandb.log({"test_loss": loss.item(), "epoch": epoch})
+                wandb.log({"test_fidelity": fidelity, "epoch": epoch})
         # Clean up.
-        for param, best_param in zip(surrogate.parameters(),
-                                     best_model.parameters()):
+        for param, best_param in zip(surrogate.parameters(), best_model.parameters()):
             param.data = best_param.data
-        self.loss_list = loss_list
-        self.surrogate.eval()
+
+        if val_data is not None:
+            self.surrogate.eval()
 
     def __call__(self, x, S):
-        '''
+        """
         Evaluate surrogate model.
 
         Args:
           x: input examples.
           S: coalitions.
-        '''
+        """
         if self.groups_matrix is not None:
             S = torch.mm(S, self.groups_matrix)
 

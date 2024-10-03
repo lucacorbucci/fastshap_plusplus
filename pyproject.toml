@@ -16,6 +16,7 @@ ruff = "^0.4.8"
 dill = "^0.3.8"
 matplotlib = "^3.9.0"
 shapley-regression = "^0.0.1"
+torchvision = "^0.19.1"
 
 
 [tool.poetry.group.dev.dependencies]

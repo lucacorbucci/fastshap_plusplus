@@ -38,6 +38,7 @@ def setup_wandb(args, rnd):
     wandb_run = wandb.init(
         # set the wandb project where this run will be logged
         project=args.project_name,
+        dir="/raid/lcorbucci/wandb_tmp",
         config={
             "learning_rate": args.lr,
             "batch_size": args.batch_size,

@@ -11,6 +11,7 @@ from torch.utils.data import (
     Dataset,
     TensorDataset,
 )
+from torchvision import datasets, transforms
 
 
 class TabularDataset(Dataset):
@@ -97,8 +98,9 @@ def dataset_to_numpy(
 
 
 def prepare_dutch(args):
-    np.random.seed(0)
-    random.seed(0)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     tmp = load_dutch()
     feature_names = tmp[1]
@@ -118,9 +120,11 @@ def prepare_dutch(args):
     x = np.array(x[test_size:])
     y = np.array(y[test_size:])
 
-    rnd = int(str(time.time()).split(".")[1]) * 42
-    np.random.seed(rnd)
-    random.seed(rnd)
+    if args.sweep:
+        np.random.seed(args.validation_seed)
+        random.seed(args.validation_seed)
+        torch.manual_seed(args.validation_seed)
+
     xy = list(zip(x, y))
     random.shuffle(xy)
     x, y = zip(*xy)
@@ -163,8 +167,9 @@ def prepare_dutch(args):
     x_val = np.hstack((x_val, np.ones((x_val.shape[0], 1)))) if val_size > 0 else None
     x_test = np.hstack((x_test, np.ones((x_test.shape[0], 1))))
 
-    np.random.seed(0)
-    random.seed(0)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     return (
         train_dataset,
@@ -177,6 +182,30 @@ def prepare_dutch(args):
         y_val,
         y_test,
         feature_names,
+    )
+
+
+def prepare_mnist(args):
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    )
+    train_dataset = datasets.MNIST(
+        "../data", train=True, download=True, transform=transform
+    )
+    val_dataset = None
+    test_dataset = None
+    if args.sweep:
+        # split the training dataset into training and validation
+        train_dataset, val_dataset = torch.utils.data.random_split(
+            train_dataset, [50000, 10000]
+        )
+    else:
+        test_dataset = datasets.MNIST("../data", train=False, transform=transform)
+
+    return (
+        train_dataset,
+        val_dataset,
+        test_dataset,
     )
 
 
@@ -203,18 +232,17 @@ def data_scaling(X_train, X_val, X_test):
 
 
 def prepare_data(args):
-    rnd = int(str(time.time()).split(".")[1]) * 42
     # Load and split data
     if args.dataset_name == "adult":
         X_train, X_test, Y_train, Y_test = train_test_split(
-            *shap.datasets.adult(), test_size=0.2, random_state=42
+            *shap.datasets.adult(), test_size=0.2, random_state=args.seed
         )
         feature_names = X_train.columns.tolist()
 
         X_val, Y_val = None, None
         if args.sweep:
             X_train, X_val, Y_train, Y_val = train_test_split(
-                X_train, Y_train, test_size=0.2, random_state=rnd
+                X_train, Y_train, test_size=0.2, random_state=args.validation_seed
             )
             X_test = None
             Y_test = None
@@ -272,4 +300,17 @@ def prepare_data(args):
             Y_test,
             X_train.shape[1],
             features_names,
+        )
+
+    elif args.dataset_name == "mnist":
+        (
+            train_set,
+            val_set,
+            test_set,
+        ) = prepare_mnist(args)
+
+        return (
+            train_set,
+            val_set,
+            test_set,
         )

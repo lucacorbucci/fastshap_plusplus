@@ -1,16 +1,19 @@
+import itertools
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import itertools
-from torch.utils.data import Dataset
 from torch.distributions.categorical import Categorical
-from torch.utils.data import Dataset, TensorDataset, DataLoader
-
-from torch.utils.data import RandomSampler, BatchSampler
+from torch.utils.data import (
+    BatchSampler,
+    DataLoader,
+    Dataset,
+    RandomSampler,
+    TensorDataset,
+)
 
 
 def setup_data(train_data, batch_size):
-    
     # Set up train dataset.
     if isinstance(train_data, np.ndarray):
         train_data = torch.tensor(train_data, dtype=torch.float32)
@@ -20,26 +23,27 @@ def setup_data(train_data, batch_size):
     elif isinstance(train_data, Dataset):
         train_set = train_data
     else:
-        raise ValueError('train_data must be either tensor or a '
-                            'PyTorch Dataset')
+        raise ValueError("train_data must be either tensor or a " "PyTorch Dataset")
 
     # Set up train data loader.
     random_sampler = RandomSampler(
-        train_set, replacement=True,
-        num_samples=int(np.ceil(len(train_set) / batch_size))*batch_size)
-    batch_sampler = BatchSampler(
-        random_sampler, batch_size=batch_size, drop_last=True)
+        train_set,
+        replacement=True,
+        num_samples=int(np.ceil(len(train_set) / batch_size)) * batch_size,
+    )
+    batch_sampler = BatchSampler(random_sampler, batch_size=batch_size, drop_last=True)
     train_loader = DataLoader(train_set, batch_sampler=batch_sampler)
     return train_loader, random_sampler, batch_sampler
 
+
 class MaskLayer1d(nn.Module):
-    '''
+    """
     Masking for 1d inputs.
 
     Args:
       value: replacement value(s) for held out features.
       append: whether to append the mask along feature dimension.
-    '''
+    """
 
     def __init__(self, value, append):
         super().__init__()
@@ -48,20 +52,20 @@ class MaskLayer1d(nn.Module):
 
     def forward(self, input_tuple):
         x, S = input_tuple
-        x = x * S #+ self.value * (1 - S)
+        x = x * S  # + self.value * (1 - S)
         if self.append:
             x = torch.cat((x, S), dim=1)
         return x
 
 
 class MaskLayer2d(nn.Module):
-    '''
+    """
     Masking for 2d inputs.
 
     Args:
       value: replacement value(s) for held out features.
       append: whether to append the mask along channels dimension.
-    '''
+    """
 
     def __init__(self, value, append):
         super().__init__()
@@ -79,39 +83,39 @@ class MaskLayer2d(nn.Module):
 
 
 class KLDivLoss(nn.Module):
-    '''
+    """
     KL divergence loss that applies log softmax operation to predictions.
 
     Args:
       reduction: how to reduce loss value (e.g., 'batchmean').
       log_target: whether the target is expected as a log probabilities (or as
         probabilities).
-    '''
+    """
 
-    def __init__(self, reduction='batchmean', log_target=False):
+    def __init__(self, reduction="batchmean", log_target=False):
         super().__init__()
         self.kld = nn.KLDivLoss(reduction=reduction, log_target=log_target)
 
     def forward(self, pred, target):
-        '''
+        """
         Evaluate loss.
 
         Args:
           pred:
           target:
-        '''
+        """
         return self.kld(pred.log_softmax(dim=1), target)
 
 
 class DatasetRepeat(Dataset):
-    '''
+    """
     A wrapper around multiple datasets that allows repeated elements when the
     dataset sizes don't match. The number of elements is the maximum dataset
     size, and all datasets must be broadcastable to the same size.
 
     Args:
       datasets: list of dataset objects.
-    '''
+    """
 
     def __init__(self, datasets):
         # Get maximum number of elements.
@@ -126,8 +130,7 @@ class DatasetRepeat(Dataset):
 
     def __getitem__(self, index):
         assert 0 <= index < self.num_items
-        return_items = [dset[index % num] for dset, num in
-                        zip(self.dsets, self.items)]
+        return_items = [dset[index % num] for dset, num in zip(self.dsets, self.items)]
         return tuple(itertools.chain(*return_items))
 
     def __len__(self):
@@ -135,13 +138,13 @@ class DatasetRepeat(Dataset):
 
 
 class DatasetInputOnly(Dataset):
-    '''
+    """
     A wrapper around a dataset object to ensure that only the first element is
     returned.
 
     Args:
       dataset: dataset object.
-    '''
+    """
 
     def __init__(self, dataset):
         assert isinstance(dataset, Dataset)
@@ -155,23 +158,23 @@ class DatasetInputOnly(Dataset):
 
 
 class UniformSampler:
-    '''
+    """
     For sampling player subsets with cardinality chosen uniformly at random.
 
     Args:
       num_players: number of players.
-    '''
+    """
 
     def __init__(self, num_players):
         self.num_players = num_players
 
     def sample(self, batch_size):
-        '''
+        """
         Generate sample.
 
         Args:
           batch_size: number of samples
-        '''
+        """
         rand = torch.rand(batch_size, self.num_players)
         thresh = torch.rand(batch_size, 1)
         S = (thresh > rand).float()
@@ -180,12 +183,12 @@ class UniformSampler:
 
 
 class ShapleySampler:
-    '''
+    """
     For sampling player subsets from the Shapley distribution.
 
     Args:
       num_players: number of players.
-    '''
+    """
 
     def __init__(self, num_players):
         arange = torch.arange(1, num_players)
@@ -199,16 +202,18 @@ class ShapleySampler:
         self.rng = np.random.default_rng()
 
     def sample(self, batch_size, paired_sampling):
-        '''
+        """
         Generate sample.
 
         Args:
           batch_size: number of samples.
           paired_sampling: whether to use paired sampling.
-        '''
+        """
         num_included = 1 + self.categorical.sample([batch_size])
         S = self.tril[num_included - 1]
         S = self.rng.permuted(S, axis=1)  # Note: permutes each row.
         if paired_sampling:
-            S[1::2] = 1 - S[0:(batch_size - 1):2]  # Note: allows batch_size % 2 == 1.
+            S[1::2] = (
+                1 - S[0 : (batch_size - 1) : 2]
+            )  # Note: allows batch_size % 2 == 1.
         return torch.from_numpy(S)

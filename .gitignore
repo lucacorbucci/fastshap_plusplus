@@ -1,7 +1,3 @@
-*.pth
-*.pt
-
-
 plots_data/
 plots_data_adult/
 *
@@ -111,3 +107,11 @@ target/
 .ipynb_checkpoints/
 *.pyc
 fl_puf/temp_output.txt
+
+
+
+
+*.pth
+*.pt
+
+

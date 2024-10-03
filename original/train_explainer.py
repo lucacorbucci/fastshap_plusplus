@@ -9,10 +9,10 @@ import shap  # https://github.com/slundberg/shap  # https://github.com/slundberg
 import shapreg  # https://github.com/iancovert/shapley-regression  # https://github.com/iancovert/shapley-regression
 import torch
 import torch.nn as nn
-import wandb
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+import wandb
 from fastshap import FastSHAP, KLDivLoss, Surrogate
 from fastshap.utils import MaskLayer1d
 
@@ -40,6 +40,7 @@ def setup_wandb(args, rnd):
     wandb_run = wandb.init(
         # set the wandb project where this run will be logged
         project=args.project_name,
+        dir="/raid/lcorbucci/wandb_tmp",
         config={
             "learning_rate": args.lr,
             "batch_size": args.batch_size,

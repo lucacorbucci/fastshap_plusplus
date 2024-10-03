@@ -1,5 +1,9 @@
 import argparse
+import random
+import time
 import warnings
+
+import numpy as np
 
 # import shapreg  # https://github.com/iancovert/shapley-regression
 import torch
@@ -28,7 +32,8 @@ parser.add_argument("--batch_size", type=int, default=None)
 parser.add_argument("--optimizer", type=str, default=None)
 parser.add_argument("--clipping", type=float, default=None)
 parser.add_argument("--epsilon", type=float, default=None)
-parser.add_argument("--node_shuffle_seed", type=int, default=None)
+parser.add_argument("--validation_seed", type=int, default=None)
+parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--project_name", type=str, default=None)
 parser.add_argument("--save_model", type=bool, default=False)
 parser.add_argument("--model_name", type=str, default="model.pth")
@@ -39,13 +44,14 @@ def setup_wandb(args):
     wandb_run = wandb.init(
         # set the wandb project where this run will be logged
         project=args.project_name,
+        dir="/raid/lcorbucci/wandb_tmp",
         config={
             "learning_rate": args.lr,
             "batch_size": args.batch_size,
             "epochs": args.epochs,
             "epsilon": args.epsilon,
             "gradnorm": args.clipping,
-            "node_shuffle_seed": args.node_shuffle_seed,
+            "validation_seed": args.validation_seed,
             "optimizer": args.optimizer,
         },
     )
@@ -128,22 +134,66 @@ class Model(nn.Module):
         return x
 
 
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, 10)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout2(x)
+        output = self.fc2(x)
+        # output = F.log_softmax(x, dim=1)
+        return output
+
+
 if __name__ == "__main__":
     args = parser.parse_args()
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if args.validation_seed is None:
+        validation_seed = int(str(time.time()).split(".")[1]) * args.seed
 
-    (
-        train_set,
-        val_set,
-        test_set,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        feature_size,
-        feature_names,
-    ) = prepare_data(args)
+        args.validation_seed = validation_seed
+
+    if args.dataset_name == "adult" or args.dataset_name == "dutch":
+        (
+            train_set,
+            val_set,
+            test_set,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            feature_size,
+            _,
+        ) = prepare_data(args)
+    elif args.dataset_name == "mnist":
+        (
+            train_set,
+            val_set,
+            test_set,
+        ) = prepare_data(args)
+
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
     val_loader = (
@@ -157,7 +207,10 @@ if __name__ == "__main__":
         else None
     )
 
-    model = Model(feature_size, 128, 2)
+    if args.dataset_name == "adult" or args.dataset_name == "dutch":
+        model = Model(feature_size, 128, 2)
+    elif args.dataset_name == "mnist":
+        model = Net()
 
     optimizer = get_optimizer(args.optimizer, model, args.lr)
 
@@ -185,6 +238,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
+    print("Training model with Validation set: ", val_set)
     train_model(
         model,
         optimizer,

@@ -1,5 +1,7 @@
 import os.path
 import pickle
+import random
+import time
 import warnings
 from copy import deepcopy
 
@@ -25,7 +27,9 @@ from torch.utils.data import (
     TensorDataset,
 )
 
-from fastshap.utils import DatasetRepeat, ShapleySampler
+from fastshap.image_surrogate_DP import ImageSurrogate_DP
+from fastshap.utils import DatasetInputOnly, DatasetRepeat, ShapleySampler
+from unet import SimpleConvNet  # , UNet
 from utils import prepare_data
 
 warnings.simplefilter("ignore")
@@ -59,6 +63,42 @@ parser.add_argument("--surrogate", type=str, default="")
 parser.add_argument("--model_name", type=str, default="")
 parser.add_argument("--dataset_name", type=str, default="adult")
 
+parser.add_argument("--paired_sampling", type=bool, default=True)
+parser.add_argument("--eff_lambda", type=float, default=0)
+
+parser.add_argument("--validation_seed", type=int, default=None)
+parser.add_argument("--seed", type=int, default=42)
+
+
+# paired_sampling True/False
+# eff_lambda 0,1
+
+
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(2, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, 10)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        output = F.log_softmax(x, dim=1)
+        return output
+
 
 def get_optimizer(optimizer_name, model, lr):
     if optimizer_name == "adam":
@@ -67,27 +107,6 @@ def get_optimizer(optimizer_name, model, lr):
         return optim.SGD(model.parameters(), lr=lr)
     else:
         raise ValueError("Optimizer not found")
-
-
-# def prepare_data():
-#     # Load and split data
-#     X_train, X_test, Y_train, Y_test = train_test_split(
-#         *shap.datasets.adult(), test_size=0.2, random_state=42
-#     )
-#     X_train, X_val, Y_train, Y_val = train_test_split(
-#         X_train, Y_train, test_size=0.2, random_state=0
-#     )
-
-#     # Data scaling
-#     num_features = X_train.shape[1]
-#     feature_names = X_train.columns.tolist()
-#     ss = StandardScaler()
-#     ss.fit(X_train)
-#     X_train = ss.transform(X_train.values)
-#     X_val = ss.transform(X_val.values)
-#     X_test = ss.transform(X_test.values)
-
-#     return X_train, X_val, X_test, Y_train, Y_val, Y_test, num_features, feature_names
 
 
 def prepare_dataset_for_explainer(
@@ -101,6 +120,7 @@ def prepare_dataset_for_explainer(
     validation_samples,
     num_players,
     validation_seed=None,
+    image_dataset=False,
 ):
     # Set up train dataset.
     if isinstance(train_data, np.ndarray):
@@ -126,8 +146,7 @@ def prepare_dataset_for_explainer(
 
     num_workers = 0
 
-    imputer = imputer.to(device)
-
+    print("Number of numplyaer in calculate_grand_coaliton ", num_players)
     # Grand coalition value.
     grand_train = calculate_grand_coalition(
         train_set,
@@ -136,7 +155,8 @@ def prepare_dataset_for_explainer(
         link,
         device,
         num_workers,
-        num_features,
+        num_players,
+        image_dataset,
     ).cpu()
     grand_val = calculate_grand_coalition(
         val_set,
@@ -145,13 +165,19 @@ def prepare_dataset_for_explainer(
         link,
         device,
         num_workers,
-        num_features,
+        num_players,
+        image_dataset,
     ).cpu()
 
     # Null coalition.
     with torch.no_grad():
         zeros = torch.zeros(1, num_players, dtype=torch.float32, device=device)
-        null = link(imputer((train_set[0][0].unsqueeze(0).to(device), zeros)))
+
+        if args.dataset_name == "mnist":
+            null = link(imputer(train_set[0][0].unsqueeze(0).to(device), zeros))
+
+        else:
+            null = link(imputer((train_set[0][0].unsqueeze(0).to(device), zeros)))
         if len(null.shape) == 1:
             null = null.reshape(1, 1)
 
@@ -180,6 +206,7 @@ def prepare_dataset_for_explainer(
         device,
         num_workers,
         num_players,
+        image_dataset,
     )
 
     # Set up val loader.
@@ -191,6 +218,7 @@ def prepare_dataset_for_explainer(
         num_workers=num_workers,
     )
 
+    print("Dataset ready for the explainer")
     return train_loader, val_loader, grand_train, grand_val, null, sampler
 
 
@@ -206,6 +234,7 @@ def setup_wandb(args):
     wandb_run = wandb.init(
         # set the wandb project where this run will be logged
         project=args.project_name,
+        dir="/raid/lcorbucci/wandb_tmp",
         config={
             "learning_rate": args.lr,
             "batch_size": args.batch_size,
@@ -213,6 +242,7 @@ def setup_wandb(args):
             "epsilon": args.epsilon,
             "gradnorm": args.clipping,
             "optimizer": args.optimizer,
+            "validation_seed": args.validation_seed,
         },
     )
     return wandb_run
@@ -222,51 +252,108 @@ args = parser.parse_args()
 
 wandb_run = setup_wandb(args)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 surrogate = load_model(f"{args.surrogate}")
 
+imputer = surrogate.to(device)
+
 imputer = surrogate
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+surrogate = ImageSurrogate_DP(surrogate, width=28, height=28, superpixel_size=2)
 
 
-(
-    _,
-    _,
-    _,
-    X_train,
-    X_val,
-    X_test,
-    Y_train,
-    Y_val,
-    Y_test,
-    num_features,
-    feature_names,
-) = prepare_data(args)
+np.random.seed(args.seed)
+random.seed(args.seed)
+torch.manual_seed(args.seed)
+
+if args.validation_seed is None:
+    validation_seed = int(str(time.time()).split(".")[1]) * args.seed
+    args.validation_seed = validation_seed
 
 
-train_loader, val_loader, grand_train, grand_val, null, sampler = (
-    prepare_dataset_for_explainer(
+if args.dataset_name == "adult" or args.dataset_name == "dutch":
+    (
+        _,
+        _,
+        _,
         X_train,
         X_val,
-        args.batch_size,
-        imputer,
-        num_samples=args.num_samples,
-        link=nn.Softmax(dim=-1),
-        device=device,
-        validation_samples=args.validation_samples,
-        num_players=num_features,
-    )
-)
+        X_test,
+        Y_train,
+        Y_val,
+        Y_test,
+        num_features,
+        feature_names,
+    ) = prepare_data(args)
+elif args.dataset_name == "mnist":
+    (
+        train_set,
+        val_set,
+        test_set,
+    ) = prepare_data(args)
 
-# else:
-# Create explainer model
-explainer = nn.Sequential(
-    nn.Linear(num_features, 128),
-    nn.ReLU(inplace=True),
-    nn.Linear(128, 128),
-    nn.ReLU(inplace=True),
-    nn.Linear(128, 2 * num_features),
-).to(device)
+np.random.seed(args.seed)
+random.seed(args.seed)
+torch.manual_seed(args.seed)
+
+if args.dataset_name == "mnist":
+    fastshap_train = DatasetInputOnly(train_set)
+    if val_set is not None:
+        fastshap_val = DatasetInputOnly(val_set)
+        fastshap_test = None
+    else:
+        fastshap_val = None
+        fastshap_test = DatasetInputOnly(test_set)
+
+image_dataset = True if args.dataset_name == "mnist" else False
+
+if args.sweep:
+    train_loader, val_loader, grand_train, grand_val, null, sampler = (
+        prepare_dataset_for_explainer(
+            X_train if not image_dataset else fastshap_train,
+            X_val if not image_dataset else fastshap_val,
+            args.batch_size,
+            surrogate,
+            num_samples=args.num_samples,
+            link=nn.Softmax(dim=-1),
+            device=device,
+            validation_samples=args.validation_samples,
+            num_players=num_features if not image_dataset else surrogate.num_players,
+            validation_seed=args.validation_seed,
+            image_dataset=image_dataset,
+        )
+    )
+else:
+    train_loader, test_loader, grand_train, grand_test, null, sampler = (
+        prepare_dataset_for_explainer(
+            X_train if not image_dataset else fastshap_train,
+            X_test if not image_dataset else fastshap_test,
+            args.batch_size,
+            surrogate,
+            num_samples=args.num_samples,
+            link=nn.Softmax(dim=-1),
+            device=device,
+            validation_samples=args.validation_samples,
+            num_players=num_features if not image_dataset else surrogate.num_players,
+            validation_seed=args.validation_seed,
+            image_dataset=image_dataset,
+        )
+    )
+    val_loader = None
+    grand_val = None
+
+if args.dataset_name == "dutch" or args.dataset_name == "adult":
+    explainer = nn.Sequential(
+        nn.Linear(num_features, 128),
+        nn.ReLU(inplace=True),
+        nn.Linear(128, 128),
+        nn.ReLU(inplace=True),
+        nn.Linear(128, 2 * num_features),
+    ).to(device)
+else:
+    explainer = SimpleConvNet().to(device)
+print("Prepared network for the explainer")
 
 explainer = ModuleValidator.fix(explainer)
 ModuleValidator.validate(explainer, strict=False)
@@ -291,6 +378,7 @@ else:
         max_grad_norm=10000000000,
         noise_multiplier=0,
     )
+
 print("Created private model")
 
 
@@ -298,7 +386,7 @@ print("Created private model")
 fastshap = FastSHAP(
     explainer,
     surrogate,
-    num_features=num_features,
+    num_features=num_features if not image_dataset else surrogate.num_players,
     normalization=args.normalization,
     link=nn.Softmax(dim=-1),
 )
@@ -320,6 +408,9 @@ fastshap.train(
     wandb=wandb,
     sampler=sampler,
     bar=True,
+    eff_lambda=args.eff_lambda,
+    paired_sampling=args.paired_sampling,
+    image_dataset=image_dataset,
 )
 
 if args.save_model:
