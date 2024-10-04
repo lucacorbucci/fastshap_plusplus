@@ -1,4 +1,4 @@
-program: ../surrogate.py
+program: ../../train_surrogate.py
 method: bayes
 metric:
   name: validation_loss
@@ -37,6 +37,6 @@ command:
   - --project_name
   - Private_Fast_Shap
   - --model_name
-  - ../train_dutch/baseline_dutch_model_NO_DP.pth
+  - ../../artifacts/dutch/bb/baseline_dutch_model_NO_DP.pth
   - --dataset_name
   - dutch
