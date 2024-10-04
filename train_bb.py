@@ -4,25 +4,21 @@ import time
 import warnings
 
 import numpy as np
-
-# import shapreg  # https://github.com/iancovert/shapley-regression
 import torch
-import torch.nn as nn
-
-# import Functional torch
 import torch.nn.functional as F
-import torch.optim as optim
 import tqdm
+import wandb
 from opacus import PrivacyEngine
 from torch.utils.data import (
     DataLoader,
 )
 from tqdm.auto import tqdm
 
-from utils import prepare_data
+from bb_architecture import SimpleCNN, TabularModel
+from utils import get_optimizer, is_dataset_supported, is_image_dataset, prepare_data
 
 warnings.simplefilter("ignore")
-import wandb
+
 
 parser = argparse.ArgumentParser(description="Training Adult")
 parser.add_argument("--sweep", type=bool, default=False)
@@ -58,15 +54,6 @@ def setup_wandb(args):
     return wandb_run
 
 
-def get_optimizer(optimizer, model, lr):
-    if optimizer == "adam":
-        return optim.Adam(model.parameters(), lr=lr)
-    elif optimizer == "sgd":
-        return optim.SGD(model.parameters(), lr=lr)
-    else:
-        raise ValueError("Optimizer not recognized")
-
-
 def eval_model(model, data_loader, device):
     model.eval()
     correct = 0
@@ -80,6 +67,14 @@ def eval_model(model, data_loader, device):
             correct += (predicted == target.view_as(predicted)).sum().item()
     acc = correct / total
     return acc
+
+
+def get_model(args):
+    if args.dataset_name == "adult" or args.dataset_name == "dutch":
+        model = TabularModel(feature_size, 128, 2)
+    elif args.dataset_name == "mnist":
+        model = SimpleCNN()
+    return model
 
 
 def train_model(
@@ -107,70 +102,36 @@ def train_model(
 
             wandb_run.log({"train_loss": loss.item()})
 
-        # test on the training set
         train_acc = eval_model(model, train_loader, device)
         wandb_run.log({"train_accuracy": train_acc, "epoch": epoch})
 
-        # validate on the validation set
         if val_loader is not None:
             val_acc = eval_model(model, val_loader, device)
             wandb_run.log({"validation_accuracy": val_acc, "epoch": epoch})
 
-        # test on the test set
         if test_loader is not None:
             test_acc = eval_model(model, test_loader, device)
             wandb_run.log({"test_accuracy": test_acc, "epoch": epoch})
 
 
-class Model(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(Model, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout2(x)
-        output = self.fc2(x)
-        # output = F.log_softmax(x, dim=1)
-        return output
-
-
 if __name__ == "__main__":
     args = parser.parse_args()
+
+    if not is_dataset_supported(args.dataset_name):
+        raise ValueError(f"Dataset {args.dataset_name} is not supported")
+
+    # Don't remove the seed setting
     np.random.seed(args.seed)
     random.seed(args.seed)
     torch.manual_seed(args.seed)
+
     if args.validation_seed is None:
         validation_seed = int(str(time.time()).split(".")[1]) * args.seed
-
         args.validation_seed = validation_seed
 
-    if args.dataset_name == "adult" or args.dataset_name == "dutch":
+    image_dataset = is_image_dataset(args.dataset_name)
+
+    if not image_dataset:
         (
             train_set,
             val_set,
@@ -184,13 +145,14 @@ if __name__ == "__main__":
             feature_size,
             _,
         ) = prepare_data(args)
-    elif args.dataset_name == "mnist":
+    elif image_dataset:
         (
             train_set,
             val_set,
             test_set,
         ) = prepare_data(args)
 
+    # Don't remove the seed setting
     np.random.seed(args.seed)
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -207,15 +169,14 @@ if __name__ == "__main__":
         else None
     )
 
-    if args.dataset_name == "adult" or args.dataset_name == "dutch":
-        model = Model(feature_size, 128, 2)
-    elif args.dataset_name == "mnist":
-        model = Net()
+    model = get_model(args)
 
     optimizer = get_optimizer(args.optimizer, model, args.lr)
 
     privacy_engine = PrivacyEngine()
 
+    # If we do not want to train with privacy we set the noise multiplier to 0 and
+    # the clipping to a very high value. Otherwise w train with DP.
     if args.epsilon is not None:
         model, optimizer, train_loader = privacy_engine.make_private_with_epsilon(
             module=model,
@@ -238,7 +199,6 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    print("Training model with Validation set: ", val_set)
     train_model(
         model,
         optimizer,
@@ -252,4 +212,6 @@ if __name__ == "__main__":
 
     if args.save_model:
         # save model with and without state dict
-        torch.save(model, f"{args.model_name}.pth")
+        torch.save(
+            model, f"../../artifacts/{args.dataset_name}/bb/{args.model_name}.pth"
+        )

@@ -1,4 +1,4 @@
-program: ../train_model.py
+program: ../../train_bb.py
 method: bayes
 metric:
   name: validation_accuracy
@@ -8,14 +8,14 @@ early_terminate:
   min_iter: 3
 parameters:
   batch_size:
-    min: 64
-    max: 1024
+    min: 256
+    max: 2048
   lr:
     min: 0.0001
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
-
+    
 command:
   - ${env}
   - poetry 
@@ -30,4 +30,4 @@ command:
   - --project_name
   - Private_Fast_Shap
   - --dataset_name
-  - mnist
+  - dutch 

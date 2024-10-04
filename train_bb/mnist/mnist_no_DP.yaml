@@ -1,29 +1,20 @@
-program: ./train_surrogate.py
+program: ../../train_bb.py
 method: bayes
 metric:
-  name: validation_loss
-  goal: minimize
+  name: validation_accuracy
+  goal: maximize
 early_terminate:
   type: hyperband
   min_iter: 3
 parameters:
   batch_size:
-    min: 32
-    max: 2048
+    min: 64
+    max: 1024
   lr:
     min: 0.0001
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
-  validation_samples:
-    min: 5
-    max: 100
-  validation_batch_size:
-    min: 100
-    max: 10000
-  epochs:
-    min: 10
-    max: 100
 
 command:
   - ${env}
@@ -32,7 +23,11 @@ command:
   - python
   - ${program}
   - ${args}
+  - --epochs
+  - 10
   - --sweep
   - True
   - --project_name
   - Private_Fast_Shap
+  - --dataset_name
+  - mnist

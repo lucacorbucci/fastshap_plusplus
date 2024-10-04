@@ -1,4 +1,4 @@
-program: ./train_adult.py
+program: ../../train_bb.py
 method: bayes
 metric:
   name: validation_accuracy
@@ -32,7 +32,7 @@ command:
   - --epochs
   - 10
   - --epsilon
-  - 5.0
+  - 0.5
   - --sweep
   - True
   - --project_name

@@ -1,10 +1,10 @@
 import random
-import time
 
 import numpy as np
 import pandas as pd
 import shap  # https://github.com/slundberg/shap
 import torch
+import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from torch.utils.data import (
@@ -12,6 +12,23 @@ from torch.utils.data import (
     TensorDataset,
 )
 from torchvision import datasets, transforms
+
+
+def is_image_dataset(dataset_name):
+    return dataset_name in ["mnist"]
+
+
+def is_dataset_supported(dataset_name):
+    return dataset_name in ["adult", "dutch", "mnist"]
+
+
+def get_optimizer(optimizer, model, lr):
+    if optimizer == "adam":
+        return optim.Adam(model.parameters(), lr=lr)
+    elif optimizer == "sgd":
+        return optim.SGD(model.parameters(), lr=lr)
+    else:
+        raise ValueError("Optimizer not recognized")
 
 
 class TabularDataset(Dataset):
@@ -48,7 +65,7 @@ class TabularDataset(Dataset):
 
 
 def load_dutch():
-    dutch_df = pd.read_csv("../data/dutch/dutch_census.csv")
+    dutch_df = pd.read_csv("../../data/dutch/dutch_census.csv")
     # dutch_df = pd.DataFrame(data[0]).astype("int32")
 
     dutch_df["sex_binary"] = np.where(dutch_df["sex"] == 1, 1, 0)
@@ -211,7 +228,7 @@ def prepare_mnist(args):
 
 def create_dataset(data, labels):
     # convert Y to tensor
-    labels = torch.tensor([0 if item == False else 1 for item in labels])
+    labels = torch.tensor([0 if item is False else 1 for item in labels])
 
     # convert data to tensor
     data = torch.tensor(data, dtype=torch.float32)
