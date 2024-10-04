@@ -8,10 +8,53 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from torch.utils.data import (
+    BatchSampler,
+    DataLoader,
     Dataset,
+    RandomSampler,
     TensorDataset,
 )
 from torchvision import datasets, transforms
+
+from fastshap.utils import DatasetInputOnly
+
+
+def setup_data_images(args, train_set, val_set, test_set):
+    train_surr = DatasetInputOnly(train_set)
+    # Set up train data loader.
+    if isinstance(train_surr, torch.Tensor):
+        train_set = TensorDataset(train_surr)
+    elif isinstance(train_surr, Dataset):
+        train_set = train_surr
+    else:
+        raise ValueError("train_data must be either tensor or a " "PyTorch Dataset")
+
+    random_sampler = RandomSampler(
+        train_set,
+        replacement=True,
+        num_samples=int(np.ceil(len(train_set) / args.batch_size)) * args.batch_size,
+    )
+    print(
+        "Random sampler: ",
+        int(np.ceil(len(train_set) / args.batch_size)) * args.batch_size,
+    )
+    batch_sampler = BatchSampler(
+        random_sampler, batch_size=args.batch_size, drop_last=True
+    )
+    train_loader = DataLoader(
+        train_set,
+        batch_sampler=batch_sampler,
+        pin_memory=True,
+        num_workers=0,
+    )
+    val_surr = None
+    test_surr = None
+    if val_set:
+        val_surr = DatasetInputOnly(val_set)
+    if test_set:
+        test_surr = DatasetInputOnly(test_set)
+
+    return train_loader, train_surr, val_surr, test_surr
 
 
 def is_image_dataset(dataset_name):
