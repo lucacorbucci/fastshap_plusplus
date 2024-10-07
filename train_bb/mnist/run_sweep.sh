@@ -20,3 +20,4 @@ run_sweep_and_agent () {
 
 
 run_sweep_and_agent "mnist_no_DP"
+run_sweep_and_agent "mnist_DP_1"

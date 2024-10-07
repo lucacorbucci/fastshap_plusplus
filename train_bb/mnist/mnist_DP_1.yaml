@@ -1,0 +1,38 @@
+program: ../../train_bb.py
+method: bayes
+metric:
+  name: validation_accuracy
+  goal: maximize
+early_terminate:
+  type: hyperband
+  min_iter: 3
+parameters:
+  batch_size:
+    min: 64
+    max: 1024
+  lr:
+    min: 0.0001
+    max: 0.1
+  optimizer:
+    values: ["adam", "sgd"]
+  clipping:
+    min: 1.0
+    max: 20.0
+
+command:
+  - ${env}
+  - poetry 
+  - run 
+  - python
+  - ${program}
+  - ${args}
+  - --epochs
+  - 10
+  - --sweep
+  - True
+  - --project_name
+  - Private_Fast_Shap
+  - --dataset_name
+  - mnist
+  - --epsilon
+  - 1
