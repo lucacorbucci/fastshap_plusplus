@@ -250,7 +250,7 @@ def prepare_mnist(args):
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
     )
     train_dataset = datasets.MNIST(
-        "../data", train=True, download=True, transform=transform
+        "/raid/lcorbucci/data_private_fastshap/", train=True, download=True, transform=transform
     )
     val_dataset = None
     test_dataset = None
@@ -260,7 +260,7 @@ def prepare_mnist(args):
             train_dataset, [50000, 10000]
         )
     else:
-        test_dataset = datasets.MNIST("../data", train=False, transform=transform)
+        test_dataset = datasets.MNIST("/raid/lcorbucci/data_private_fastshap/", train=False, transform=transform)
 
     return (
         train_dataset,
