@@ -37,6 +37,6 @@ command:
   - --project_name
   - Private_Fast_Shap
   - --model_name
-  - ../../artifacts/dutch/bb/baseline_dutch_model_NO_DP.pth
+  - ../../artifacts/dutch/bb/bb_dutch_NO_DP.pth
   - --dataset_name
   - dutch

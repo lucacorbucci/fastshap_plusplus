@@ -1,8 +1,11 @@
-program: ../surrogate.py
+program: ../../train_surrogate.py
 method: bayes
 metric:
   name: validation_loss
   goal: minimize
+early_terminate:
+  type: hyperband
+  min_iter: 3
 parameters:
   batch_size:
     min: 32
@@ -14,13 +17,16 @@ parameters:
     values: ["adam", "sgd"]
   validation_samples:
     min: 5
-    max: 100
+    max: 10
   validation_batch_size:
-    min: 100
+    min: 512
     max: 10000
   epochs:
     min: 10
-    max: 100
+    max: 40
+  clipping:
+    min: 1.0
+    max: 20.0
 
 command:
   - ${env}
@@ -33,5 +39,9 @@ command:
   - True
   - --project_name
   - Private_Fast_Shap
-  - --original_model
-  - model_no_dp
+  - --model_name
+  - ../../artifacts/mnist/bb/bb_mnist_DP_1.pth
+  - --dataset_name
+  - mnist
+  - --epsilon
+  - 1.0

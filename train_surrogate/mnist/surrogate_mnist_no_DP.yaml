@@ -37,6 +37,6 @@ command:
   - --project_name
   - Private_Fast_Shap
   - --model_name
-  - ../train_model_mnist/mnist_test_NO_DP.pth
+  - ../../artifacts/mnist/bb/bb_mnist_NO_DP.pth
   - --dataset_name
   - mnist

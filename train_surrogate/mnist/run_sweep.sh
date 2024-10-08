@@ -19,4 +19,5 @@ run_sweep_and_agent () {
 }
 
 
+# run_sweep_and_agent "surrogate_mnist_no_DP_1"
 run_sweep_and_agent "surrogate_mnist_no_DP"

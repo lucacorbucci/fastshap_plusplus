@@ -1,0 +1,1 @@
+poetry run python /home/lcorbucci/private_fastshap/train_bb/dutch/../../train_bb.py --batch_size=1137 --lr=0.03930001563486047 --optimizer=adam --epochs 10 --project_name Private_Fast_Shap --dataset_name dutch --model_name bb_dutch_NO_DP --save_model True
