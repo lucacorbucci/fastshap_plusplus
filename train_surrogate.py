@@ -19,7 +19,7 @@ from torch.utils.data import (
 )
 from tqdm.auto import tqdm
 
-from bb_architecture import Model, SimpleCNN, TabularModel
+from bb_architecture import SimpleCNN, TabularModel
 from fastshap.image_surrogate_DP import ImageSurrogate_DP
 from fastshap.utils import (
     DatasetInputOnly,
@@ -149,7 +149,9 @@ if __name__ == "__main__":
 
     model = load_model(args.model_name)
     if image_dataset:
-        train_loader, train_surr, val_surr, test_surr = setup_data_images()
+        train_loader, train_surr, val_surr, test_surr, random_sampler, batch_sampler = (
+            setup_data_images(args, train_set, val_set, test_set)
+        )
     elif not image_dataset:
         train_loader, random_sampler, batch_sampler = setup_data(
             train_data=X_train, batch_size=args.batch_size
@@ -199,7 +201,7 @@ if __name__ == "__main__":
     # Set up surrogate object: we pass the model that we have defined as
     # surrogate and the number of input features of the training dataset
     # we used to train the black box.
-    if args.dataset_name == "mnist":
+    if image_dataset:
         surrogate = ImageSurrogate_DP(
             surrogate_model, width=28, height=28, superpixel_size=2
         )
@@ -210,7 +212,7 @@ if __name__ == "__main__":
 
     wandb_run = setup_wandb(args)
 
-    if args.dataset_name == "mnist":
+    if image_dataset:
         surrogate.train_original_model(
             train_surr,
             val_surr,

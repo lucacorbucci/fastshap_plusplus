@@ -13,7 +13,7 @@ from fastshap.utils import (
 class ImageSurrogate(nn.Module):
     def __init__(self):
         super(ImageSurrogate, self).__init__()
-        self.conv1 = nn.Conv2d(2, 32, 3, 1)  # Change the input channels from 1 to 2
+        self.conv1 = nn.Conv2d(2, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
         self.dropout1 = nn.Dropout(0.25)
         self.dropout2 = nn.Dropout(0.5)

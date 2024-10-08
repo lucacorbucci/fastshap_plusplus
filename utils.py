@@ -54,7 +54,7 @@ def setup_data_images(args, train_set, val_set, test_set):
     if test_set:
         test_surr = DatasetInputOnly(test_set)
 
-    return train_loader, train_surr, val_surr, test_surr
+    return train_loader, train_surr, val_surr, test_surr, random_sampler, batch_sampler
 
 
 def is_image_dataset(dataset_name):
@@ -250,7 +250,10 @@ def prepare_mnist(args):
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
     )
     train_dataset = datasets.MNIST(
-        "/raid/lcorbucci/data_private_fastshap/", train=True, download=True, transform=transform
+        "/raid/lcorbucci/data_private_fastshap/",
+        train=True,
+        download=True,
+        transform=transform,
     )
     val_dataset = None
     test_dataset = None
@@ -260,7 +263,9 @@ def prepare_mnist(args):
             train_dataset, [50000, 10000]
         )
     else:
-        test_dataset = datasets.MNIST("/raid/lcorbucci/data_private_fastshap/", train=False, transform=transform)
+        test_dataset = datasets.MNIST(
+            "/raid/lcorbucci/data_private_fastshap/", train=False, transform=transform
+        )
 
     return (
         train_dataset,
