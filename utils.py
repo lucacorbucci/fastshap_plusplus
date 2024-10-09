@@ -16,7 +16,11 @@ from torch.utils.data import (
 )
 from torchvision import datasets, transforms
 
-from fastshap.utils import DatasetInputOnly
+from fastshap.fastshap_dp import (
+    calculate_grand_coalition,
+    generate_validation_data,
+)
+from fastshap.utils import DatasetInputOnly, DatasetRepeat, ShapleySampler
 
 
 def setup_data_images(args, train_set, val_set, test_set):
@@ -379,3 +383,112 @@ def prepare_data(args):
             val_set,
             test_set,
         )
+
+
+def prepare_dataset_for_explainer(
+    args,
+    train_data,
+    val_data,
+    batch_size,
+    imputer,
+    num_samples,
+    link,
+    device,
+    validation_samples,
+    num_players,
+    validation_seed=None,
+    image_dataset=False,
+):
+    # Set up train dataset.
+    if isinstance(train_data, np.ndarray):
+        x_train = torch.tensor(train_data, dtype=torch.float32)
+        train_set = TensorDataset(x_train)
+    elif isinstance(train_data, torch.Tensor):
+        train_set = TensorDataset(train_data)
+    elif isinstance(train_data, Dataset):
+        train_set = train_data
+    else:
+        raise ValueError("train_data must be np.ndarray, torch.Tensor or " "Dataset")
+
+    # Set up validation dataset.
+    if isinstance(val_data, np.ndarray):
+        x_val = torch.tensor(val_data, dtype=torch.float32)
+        val_set = TensorDataset(x_val)
+    elif isinstance(val_data, torch.Tensor):
+        val_set = TensorDataset(val_data)
+    elif isinstance(val_data, Dataset):
+        val_set = val_data
+    else:
+        raise ValueError("train_data must be np.ndarray, torch.Tensor or " "Dataset")
+
+    num_workers = 0
+
+    # Grand coalition value.
+    grand_train = calculate_grand_coalition(
+        train_set,
+        imputer,
+        batch_size * num_samples,
+        link,
+        device,
+        num_workers,
+        num_players,
+        image_dataset,
+    ).cpu()
+    grand_val = calculate_grand_coalition(
+        val_set,
+        imputer,
+        batch_size * num_samples,
+        link,
+        device,
+        num_workers,
+        num_players,
+        image_dataset,
+    ).cpu()
+
+    # Null coalition.
+    with torch.no_grad():
+        zeros = torch.zeros(1, num_players, dtype=torch.float32, device=device)
+
+        null = link(imputer(train_set[0][0].unsqueeze(0).to(device), zeros))
+        if len(null.shape) == 1:
+            null = null.reshape(1, 1)
+
+    # Set up train loader.
+    train_set = DatasetRepeat([train_set, TensorDataset(grand_train)])
+    train_loader = DataLoader(
+        train_set,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=True,
+        drop_last=True,
+        num_workers=num_workers,
+    )
+
+    # Generate validation data.
+    sampler = ShapleySampler(num_players)
+    if validation_seed is not None:
+        torch.manual_seed(validation_seed)
+    val_S, val_values = generate_validation_data(
+        val_set,
+        imputer,
+        validation_samples,
+        sampler,
+        batch_size * num_samples,
+        link,
+        device,
+        num_workers,
+        num_players,
+        image_dataset,
+    )
+
+    # Set up val loader.
+    val_set = DatasetRepeat([val_set, TensorDataset(grand_val, val_S, val_values)])
+    val_loader = DataLoader(
+        val_set,
+        batch_size=batch_size * num_samples,
+        pin_memory=True,
+        num_workers=num_workers,
+    )
+
+    print("Dataset ready for the explainer")
+    return train_loader, val_loader, grand_train, grand_val, null, sampler

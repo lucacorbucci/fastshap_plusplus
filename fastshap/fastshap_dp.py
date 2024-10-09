@@ -64,6 +64,7 @@ def evaluate_explainer(
         image_shape = pred.shape
         pred = pred.reshape(len(x), -1, num_players)
         pred = pred.permute(0, 2, 1)
+
     else:
         # Tabular.
         image_shape = None
@@ -83,7 +84,6 @@ def evaluate_explainer(
             pred = pred.reshape(image_shape)
 
         return pred
-
     return pred, total
 
 
@@ -121,10 +121,7 @@ def calculate_grand_coalition(
     with torch.no_grad():
         grand = []
         for (x,) in loader:
-            if image_dataset:
-                output = imputer(x.to(device), ones[: len(x)].to(device))
-            else:
-                output = imputer((x.to(device), ones[: len(x)].to(device)))
+            output = imputer(x.to(device), ones[: len(x)].to(device))
             grand.append(link(output))
 
         # Concatenate and return.
@@ -180,10 +177,7 @@ def generate_validation_data(
         values = []
 
         for x, S in loader:
-            if image_dataset:
-                values.append(link(imputer(x.to(device), S.to(device))).cpu().data)
-            else:
-                values.append(link(imputer((x.to(device), S.to(device)))).cpu().data)
+            values.append(link(imputer(x.to(device), S.to(device))).cpu().data)
 
         val_values.append(torch.cat(values))
 
@@ -380,11 +374,7 @@ class FastSHAP:
                     )
 
                     with torch.no_grad():
-                        if image_dataset:
-                            values = link(imputer(x_tiled, S))
-
-                        else:
-                            values = link(imputer((x_tiled, S)))
+                        values = link(imputer(x_tiled, S))
 
                     # Evaluate explainer.
                     pred, total = evaluate_explainer(
@@ -394,7 +384,13 @@ class FastSHAP:
                     # Calculate loss.
                     S = S.reshape(random_batch_size, num_samples, num_players)
                     values = values.reshape(random_batch_size, num_samples, -1)
-                    approx = null + torch.matmul(S, pred)
+                    matm = torch.matmul(S, pred)
+
+                    # if image_dataset:
+                    #     print("Shape: ", null.shape, matm.shape, pred.shape, S.shape)
+                    #     sys.exit()
+                    approx = null + matm  # torch.matmul(S, pred)
+
                     loss = loss_fn(approx, values)
                     if eff_lambda:
                         loss = loss + eff_lambda * loss_fn(total, grand - null)

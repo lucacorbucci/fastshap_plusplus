@@ -1,0 +1,52 @@
+program: ../../train_explainer.py
+method: bayes
+metric:
+  name: validation_loss
+  goal: minimize
+early_terminate:
+  type: hyperband
+  min_iter: 3
+parameters:
+  batch_size:
+    min: 128
+    max: 512
+  lr:
+    min: 0.0001
+    max: 0.1
+  optimizer:
+    values: ["adam", "sgd"]
+  validation_samples:
+    min: 5
+    max: 100
+
+  num_samples:
+    min: 32
+    max: 512
+  clipping:
+    min: 1.0
+    max: 20.0
+  eff_lambda:
+    min: 0.0
+    max: 1.0
+  paired_sampling:
+    values: [True, False]
+    
+command:
+  - ${env}
+  - poetry 
+  - run 
+  - python
+  - ${program}
+  - ${args}
+  - --sweep
+  - True
+  - --project_name
+  - private-fastshap
+  - --surrogate
+  - ../../artifacts/dutch/surrogate/dutch_surrogate_DP_1.pt
+  - --epsilon
+  - 5.0
+  - --dataset_name
+  - dutch 
+  - --epochs
+  - 30
