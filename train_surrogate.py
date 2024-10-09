@@ -260,4 +260,7 @@ if __name__ == "__main__":
 
     if args.save_model:
         surrogate_model.cpu()
-        torch.save(surrogate_model, f"{args.surrogate_name}.pt")
+        torch.save(
+            surrogate_model,
+            f"../../artifacts/{args.dataset_name}/surrogate/{args.surrogate_name}.pt",
+        )
