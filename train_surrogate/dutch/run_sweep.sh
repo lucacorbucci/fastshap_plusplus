@@ -20,3 +20,4 @@ run_sweep_and_agent () {
 
 
 run_sweep_and_agent "surrogate_dutch_NO_DP"
+run_sweep_and_agent "surrogate_dutch_DP_1"
