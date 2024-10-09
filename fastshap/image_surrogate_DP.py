@@ -404,12 +404,12 @@ class ImageSurrogate_DP(ImageImputer):
                 y_test = generate_labels(
                     test_data, original_model, validation_batch_size, num_workers
                 )
-                y_test_repeat = y_val.repeat(
+                y_test_repeat = y_test.repeat(
                     validation_samples, *[1 for _ in y_test.shape[1:]]
                 )
 
                 # Create dataset.
-                val_set = DatasetRepeat(
+                test_set = DatasetRepeat(
                     [test_data, TensorDataset(y_test_repeat, S_test)]
                 )
             else:
