@@ -240,7 +240,7 @@ if __name__ == "__main__":
         surrogate,
         num_features=num_features if not image_dataset else surrogate.num_players,
         normalization=args.normalization,
-        link=nn.LogSoftmax(dim=1),  # nn.Softmax(dim=-1),
+        link=nn.Softmax(dim=-1),
     )
 
     # Train
@@ -266,4 +266,7 @@ if __name__ == "__main__":
     )
 
     if args.save_model:
-        torch.save(explainer, f"./{args.model_name}.pt")
+        torch.save(
+            explainer,
+            f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}.pt",
+        )
