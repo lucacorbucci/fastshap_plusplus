@@ -1,4 +1,4 @@
 wandb: Creating sweep from: dutch_NO_DP_private_model.yaml
-wandb: Creating sweep with ID: l3d4gw14
-wandb: View sweep at: https://wandb.ai/lucacorbucci/private-fastshap/sweeps/l3d4gw14
-wandb: Run sweep agent with: wandb agent lucacorbucci/private-fastshap/l3d4gw14
+wandb: Creating sweep with ID: flv0xydh
+wandb: View sweep at: https://wandb.ai/lucacorbucci/private-fastshap/sweeps/flv0xydh
+wandb: Run sweep agent with: wandb agent lucacorbucci/private-fastshap/flv0xydh
