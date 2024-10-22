@@ -16,9 +16,7 @@ from opacus.validators import ModuleValidator
 
 from bb_architecture import SimpleCNN, TabularModel
 from explainer_architecture import (
-    SimpleCNN,
     SimpleConvLinearNetMNIST,
-    UNet,
     get_tabular_explainer,
 )
 from fastshap.fastshap_dp import (
@@ -207,6 +205,7 @@ if __name__ == "__main__":
         # ).to(device)
         explainer = SimpleConvLinearNetMNIST().to(device)
         # print model details summary for the model
+        print(explainer)
 
     explainer = ModuleValidator.fix(explainer)
     ModuleValidator.validate(explainer, strict=False)
