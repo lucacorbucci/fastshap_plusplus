@@ -21,9 +21,6 @@ parameters:
   num_samples:
     min: 2
     max: 25
-  clipping:
-    min: 1.0
-    max: 20.0
   eff_lambda:
     min: 0.0
     max: 1.0
@@ -42,10 +39,8 @@ command:
   - --project_name
   - private-fastshap
   - --surrogate
-  - ../../artifacts/mnist/surrogate/mnist_surrogate_NO_DP.pt
-  - --epsilon
-  - 100.0
+  - ../../artifacts/mnist/surrogate/mnist_surrogate_DP_1.pt
   - --dataset_name
-  - mnist 
+  - mnist
   - --epochs
   - 20

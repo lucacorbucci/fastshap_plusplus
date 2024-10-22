@@ -8,19 +8,19 @@ early_terminate:
   min_iter: 3
 parameters:
   batch_size:
-    min: 128
-    max: 512
+    min: 32
+    max: 256
   lr:
     min: 0.0001
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
   validation_samples:
-    min: 5
-    max: 100
+    min: 2
+    max: 25
   num_samples:
-    min: 32
-    max: 512
+    min: 2
+    max: 25
   clipping:
     min: 1.0
     max: 20.0

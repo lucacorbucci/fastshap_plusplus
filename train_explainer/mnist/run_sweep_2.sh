@@ -1,4 +1,4 @@
-PROJECT_NAME="private-fastshap" # swap out globally
+PROJECT_NAME="private-fastshap-mnist" # swap out globally
 
 run_sweep_and_agent () {
   # Set the SWEEP_NAME variable
@@ -15,8 +15,14 @@ run_sweep_and_agent () {
 #   rm temp_output.txt
   
   # Run the wandb agent command
-  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 50
+  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 30
 }
 
-run_sweep_and_agent "DP_1"
-# run_sweep_and_agent "DP_2"
+run_sweep_and_agent "NO_DP_private"
+run_sweep_and_agent "DP_1_private"
+run_sweep_and_agent "DP_2_private"
+run_sweep_and_agent "DP_3_private"
+run_sweep_and_agent "DP_4_private"
+run_sweep_and_agent "DP_5_private"
+run_sweep_and_agent "DP_10_private"
+run_sweep_and_agent "DP_100_private"

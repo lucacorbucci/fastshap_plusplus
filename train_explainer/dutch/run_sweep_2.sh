@@ -19,6 +19,8 @@ run_sweep_and_agent () {
 }
 
 
+
+run_sweep_and_agent "dutch_NO_DP_private_model"
 run_sweep_and_agent "dutch_DP_05_private_model"
 run_sweep_and_agent "dutch_DP_1_private_model"
 run_sweep_and_agent "dutch_DP_2_private_model"
@@ -27,3 +29,10 @@ run_sweep_and_agent "dutch_DP_4_private_model"
 run_sweep_and_agent "dutch_DP_5_private_model"
 run_sweep_and_agent "dutch_DP_10_private_model"
 run_sweep_and_agent "dutch_DP_100_private_model"
+
+
+
+
+
+
+

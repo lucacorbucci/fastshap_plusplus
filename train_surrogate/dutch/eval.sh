@@ -1,0 +1,4 @@
+poetry run python /home/lcorbucci/private_fastshap/train_surrogate/dutch/../../eval_surrogate.py --batch_size=1879 --epochs=55 --lr=0.03052225932226767 --optimizer=adam --validation_batch_size=4844 --validation_samples=10  --project_name Private_Fast_Shap --model_name ../../artifacts/dutch/bb/bb_dutch_NO_DP.pth --dataset_name dutch --save_model True --surrogate_name dutch_surrogate_NO_DP
+
+
+poetry run python /home/lcorbucci/private_fastshap/train_surrogate/dutch/../../eval_surrogate.py --batch_size=681 --clipping=1.903997921425196 --epochs=38 --lr=0.08748715697015334 --optimizer=sgd --validation_batch_size=8243 --validation_samples=8 --project_name Private_Fast_Shap --model_name ../../artifacts/dutch/bb/bb_dutch_DP_1.pth --dataset_name dutch --epsilon 1 --save_model True --surrogate_name dutch_surrogate_DP_1

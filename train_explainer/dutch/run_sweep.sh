@@ -15,29 +15,18 @@ run_sweep_and_agent () {
 #   rm temp_output.txt
   
   # Run the wandb agent command
-  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 60
+  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 40
 }
 
 
 
 # run_sweep_and_agent "dutch_NO_DP"
-# run_sweep_and_agent "dutch_NO_DP_private_model"
 
-# run_sweep_and_agent "dutch_DP_05"
-# run_sweep_and_agent "dutch_DP_1"
-# run_sweep_and_agent "dutch_DP_2"
-# run_sweep_and_agent "dutch_DP_3"
+run_sweep_and_agent "dutch_DP_05"
+run_sweep_and_agent "dutch_DP_1"
+run_sweep_and_agent "dutch_DP_2"
+run_sweep_and_agent "dutch_DP_3"
 run_sweep_and_agent "dutch_DP_4"
-run_sweep_and_agent "dutch_DP_4_private_model"
-
-# run_sweep_and_agent "dutch_DP_5"
-# run_sweep_and_agent "dutch_DP_10"
-# run_sweep_and_agent "dutch_DP_100"
-
-
-
-
-
-
-
-
+run_sweep_and_agent "dutch_DP_5"
+run_sweep_and_agent "dutch_DP_10"
+run_sweep_and_agent "dutch_DP_100"

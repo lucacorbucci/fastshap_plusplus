@@ -1,4 +1,4 @@
-program: ../explainer.py
+program: ../../train_explainer.py
 method: bayes
 metric:
   name: validation_loss
@@ -8,20 +8,19 @@ early_terminate:
   min_iter: 3
 parameters:
   batch_size:
-    min: 128
-    max: 512
+    min: 32
+    max: 256
   lr:
     min: 0.0001
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
   validation_samples:
-    min: 5
-    max: 100
-
+    min: 2
+    max: 25
   num_samples:
-    min: 32
-    max: 512
+    min: 2
+    max: 25
   clipping:
     min: 1.0
     max: 20.0
@@ -43,10 +42,10 @@ command:
   - --project_name
   - private-fastshap
   - --surrogate
-  - ../train_surrogate_adult/adult_surrogate_NO_DP.pt
+  - ../../artifacts/mnist/surrogate/mnist_surrogate_NO_DP.pt
   - --epsilon
   - 2.0
   - --dataset_name
-  - adult 
+  - mnist 
   - --epochs
-  - 40
+  - 20

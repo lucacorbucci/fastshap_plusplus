@@ -42,9 +42,9 @@ command:
   - --project_name
   - private-fastshap
   - --surrogate
-  - ../../artifacts/mnist/surrogate/mnist_surrogate_NO_DP.pt
+  - ../../artifacts/mnist/surrogate/mnist_surrogate_DP_1.pt
   - --epsilon
-  - 100.0
+  - 3.0
   - --dataset_name
   - mnist 
   - --epochs
