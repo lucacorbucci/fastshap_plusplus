@@ -482,11 +482,151 @@ class ImageSurrogate_DP(ImageImputer):
                     wandb.log({"test_loss": loss.item(), "epoch": epoch})
                     wandb.log({"test_fidelity": fidelity, "epoch": epoch})
 
-        # Clean up.
-        for param, best_param in zip(surrogate.parameters(), best_model.parameters()):
-            param.data = best_param.data
         if val_data is not None:
             self.surrogate.eval()
+
+    def validate_surrogate(
+        self,
+        train_data,
+        val_data,
+        test_data,
+        original_model,
+        batch_size,
+        max_epochs,
+        loss_fn,
+        train_loader,
+        random_sampler,
+        batch_sampler,
+        validation_samples=1,
+        validation_batch_size=None,
+        lr=1e-3,
+        min_lr=1e-5,
+        lr_factor=0.5,
+        lookback=5,
+        training_seed=None,
+        validation_seed=None,
+        bar=False,
+        verbose=False,
+        optimizer=None,
+        wandb=None,
+        num_workers=0,
+    ):
+        if isinstance(train_data, np.ndarray):
+            train_data = torch.tensor(train_data, dtype=torch.float32)
+
+        if isinstance(train_data, torch.Tensor):
+            train_set = TensorDataset(train_data)
+        elif isinstance(train_data, Dataset):
+            train_set = train_data
+        else:
+            raise ValueError("train_data must be either tensor or a " "PyTorch Dataset")
+
+        # Set up validation dataset.
+        sampler = UniformSampler(self.num_players)
+        if val_data is not None:
+            if validation_seed is not None:
+                torch.manual_seed(validation_seed)
+            S_val = sampler.sample(len(val_data) * validation_samples)
+            if validation_batch_size is None:
+                validation_batch_size = batch_size
+
+            if isinstance(val_data, np.ndarray):
+                val_data = torch.tensor(val_data, dtype=torch.float32)
+
+            if isinstance(val_data, torch.Tensor):
+                # Generate validation labels.
+                y_val = generate_labels(
+                    TensorDataset(val_data),
+                    original_model,
+                    validation_batch_size,
+                    num_workers,
+                )
+                y_val_repeat = y_val.repeat(
+                    validation_samples, *[1 for _ in y_val.shape[1:]]
+                )
+
+                # Create dataset.
+                val_data_repeat = val_data.repeat(validation_samples, 1, 1, 1)
+                val_set = TensorDataset(val_data_repeat, y_val_repeat, S_val)
+            elif isinstance(val_data, Dataset):
+                # Generate validation labels.
+                y_val = generate_labels(
+                    val_data, original_model, validation_batch_size, num_workers
+                )
+                y_val_repeat = y_val.repeat(
+                    validation_samples, *[1 for _ in y_val.shape[1:]]
+                )
+
+                # Create dataset.
+                val_set = DatasetRepeat([val_data, TensorDataset(y_val_repeat, S_val)])
+            else:
+                raise ValueError(
+                    "val_data must be either tuple of tensors or a " "PyTorch Dataset"
+                )
+
+            val_loader = DataLoader(
+                val_set,
+                batch_size=validation_batch_size,
+                pin_memory=True,
+                num_workers=num_workers,
+            )
+        elif test_data is not None:
+            S_test = sampler.sample(len(test_data) * validation_samples)
+            if validation_batch_size is None:
+                validation_batch_size = batch_size
+
+            if isinstance(test_data, np.ndarray):
+                test_data = torch.tensor(test_data, dtype=torch.float32)
+
+            if isinstance(test_data, torch.Tensor):
+                # Generate validation labels.
+                y_test = generate_labels(
+                    TensorDataset(test_data),
+                    original_model,
+                    validation_batch_size,
+                    num_workers,
+                )
+                y_test_repeat = y_val.repeat(
+                    validation_samples, *[1 for _ in y_test.shape[1:]]
+                )
+
+                # Create dataset.
+                test_data_repeat = test_data.repeat(validation_samples, 1, 1, 1)
+                test_set = TensorDataset(test_data_repeat, y_test_repeat, S_test)
+            elif isinstance(test_data, Dataset):
+                # Generate validation labels.
+                y_test = generate_labels(
+                    test_data, original_model, validation_batch_size, num_workers
+                )
+                y_test_repeat = y_test.repeat(
+                    validation_samples, *[1 for _ in y_test.shape[1:]]
+                )
+
+                # Create dataset.
+                test_set = DatasetRepeat(
+                    [test_data, TensorDataset(y_test_repeat, S_test)]
+                )
+            else:
+                raise ValueError(
+                    "test_data must be either tuple of tensors or a " "PyTorch Dataset"
+                )
+
+            test_loader = DataLoader(
+                test_set,
+                batch_size=validation_batch_size,
+                pin_memory=True,
+                num_workers=num_workers,
+            )
+        # Setup for training.
+        surrogate = self.surrogate
+        device = next(surrogate.parameters()).device
+        # optimizer = optim.Adam(surrogate.parameters(), lr=lr)
+
+        self.surrogate.eval()
+        test_loss, fidelity = validate(self, loss_fn, test_loader)
+        self.surrogate.train()
+        print("test_loss ", test_loss.item())
+        print("test_fidelity ", fidelity)
 
     def __call__(self, x, S):
         """
