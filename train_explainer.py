@@ -266,6 +266,6 @@ if __name__ == "__main__":
 
     if args.save_model:
         torch.save(
-            explainer,
+            fastshap.explainer,
             f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}.pt",
         )
