@@ -190,7 +190,7 @@ if __name__ == "__main__":
         surrogate = SurrogateDP(surrogate_model, num_features)
         original_model = nn.Sequential(model, nn.Softmax(dim=1))
 
-    if X_test is not None and not image_dataset:
+    if not image_dataset and X_test is not None:
         surrogate.validate_surrogate(
             X_train,
             None,
@@ -213,7 +213,7 @@ if __name__ == "__main__":
             validation_seed=args.validation_seed,
         )
 
-    elif X_test is not None and image_dataset:
+    elif image_dataset:
         surrogate.validate_surrogate(
             train_surr,
             None,
