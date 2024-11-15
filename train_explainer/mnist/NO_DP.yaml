@@ -8,25 +8,25 @@ early_terminate:
   min_iter: 3
 parameters:
   batch_size:
-    min: 32
-    max: 256
+    min: 16
+    max: 64
   lr:
     min: 0.0001
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
   validation_samples:
-    min: 2
-    max: 25
+    min: 16
+    max: 48
   num_samples:
-    min: 2
-    max: 25
+    min: 16
+    max: 48
   eff_lambda:
     min: 0.0
     max: 1.0
-  paired_sampling:
-    values: [True, False]
-    
+  epochs:
+    min: 20
+    max: 100
 command:
   - ${env}
   - poetry 
@@ -42,5 +42,5 @@ command:
   - ../../artifacts/mnist/surrogate/mnist_surrogate_NO_DP.pt
   - --dataset_name
   - mnist
-  - --epochs
-  - 20
+  - --paired_sampling
+  - True

@@ -15,10 +15,8 @@ run_sweep_and_agent () {
 #   rm temp_output.txt
   
   # Run the wandb agent command
-  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 30
+  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 50
 }
 
-run_sweep_and_agent "NO_DP_private"
-run_sweep_and_agent "DP_1_private"
-run_sweep_and_agent "DP_2_private"
-run_sweep_and_agent "DP_3_private"
+run_sweep_and_agent "DP_5"
+run_sweep_and_agent "DP_10"

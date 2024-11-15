@@ -1,4 +1,4 @@
-wandb: Creating sweep from: DP_100_private.yaml
-wandb: Creating sweep with ID: 42elpdci
-wandb: View sweep at: https://wandb.ai/lucacorbucci/private-fastshap-mnist/sweeps/42elpdci
-wandb: Run sweep agent with: wandb agent lucacorbucci/private-fastshap-mnist/42elpdci
+wandb: Creating sweep from: NO_DP.yaml
+wandb: Creating sweep with ID: retmwrzy
+wandb: View sweep at: https://wandb.ai/lucacorbucci/private-fastshap-mnist/sweeps/retmwrzy
+wandb: Run sweep agent with: wandb agent lucacorbucci/private-fastshap-mnist/retmwrzy
