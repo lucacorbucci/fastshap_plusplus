@@ -14,8 +14,11 @@ import wandb
 from opacus import PrivacyEngine
 from opacus.validators import ModuleValidator
 
-from bb_architecture import SimpleCNN, TabularModel
-from explainer_architecture import UNet, get_tabular_explainer
+from bb_architecture import TabularModel  # SimpleCNN
+from explainer_architecture import (  # , UNet
+    SimpleConvLinearNetMNIST,
+    get_tabular_explainer,
+)
 from fastshap.fastshap_dp import (
     FastSHAP,
 )
@@ -190,17 +193,17 @@ if __name__ == "__main__":
     if not image_dataset:
         explainer = get_tabular_explainer(num_features).to(device)
     else:
-        # explainer = SimpleCNN(n_classes=10, in_channels=1, base_channels=16).to(device)
-        explainer = UNet(
-            n_classes=10,
-            num_down=2,
-            num_up=1,
-            num_convs=3,
-            in_channels=1,
-            base_channels=8,
-            bilinear=False,
-        ).to(device)
-        # explainer = SimpleConvLinearNetMNIST().to(device)
+        # explainer = SimpleCNN(n_classes=10, in_channels=1, base_channels=8).to(device)
+        # explainer = UNet(
+        #     n_classes=10,
+        #     num_down=2,
+        #     num_up=1,
+        #     num_convs=3,
+        #     in_channels=1,
+        #     # base_channels=8,
+        #     # bilinear=False,
+        # ).to(device)
+        explainer = SimpleConvLinearNetMNIST().to(device)
         # print model details summary for the model
         print(explainer)
 
@@ -226,6 +229,7 @@ if __name__ == "__main__":
             data_loader=train_loader,
             max_grad_norm=10000000000,
             noise_multiplier=0,
+            poisson_sampling=False,
         )
 
     print("Created private model")
@@ -262,8 +266,14 @@ if __name__ == "__main__":
     )
 
     if args.save_model:
-        checkpoint = {'state_dict': fastshap.explainer.state_dict(),'optimizer': optimizer.state_dict()}
-        torch.save(checkpoint, f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_1.pth")
+        checkpoint = {
+            "state_dict": fastshap.explainer.state_dict(),
+            "optimizer": optimizer.state_dict(),
+        }
+        torch.save(
+            checkpoint,
+            f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_1.pth",
+        )
 
         torch.save(
             fastshap.explainer.state_dict(),
@@ -271,6 +281,6 @@ if __name__ == "__main__":
         )
 
         torch.save(
-                fastshap.explainer,
-                f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_2.pth",
+            fastshap.explainer,
+            f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_2.pth",
         )
