@@ -17,6 +17,81 @@ from tqdm.auto import tqdm
 from fastshap.utils import DatasetRepeat, UniformSampler
 
 
+def validate_FL(
+    surrogate, loss_fn, data_loader, num_players, preferences, original_model
+):
+    # Set up validation dataset.
+    sampler = UniformSampler(num_players)
+
+    if data_loader is not None:
+        S_val = sampler.sample(len(data_loader) * preferences.validation_samples)
+        validation_batch_size = (
+            preferences.batch_size
+            if preferences.validation_batch_size is None
+            else preferences.validation_batch_size
+        )
+
+        if isinstance(data_loader, np.ndarray):
+            data_loader = torch.tensor(data_loader, dtype=torch.float32)
+
+        if isinstance(data_loader, torch.Tensor):
+            # Generate validation labels.
+            y_val = generate_labels_FL(
+                TensorDataset(data_loader), original_model, validation_batch_size
+            )
+
+            y_val_repeat = y_val.repeat(
+                preferences.validation_samples, *[1 for _ in y_val.shape[1:]]
+            )
+
+            # Create dataset.
+            val_data_repeat = data_loader.repeat(preferences.validation_samples, 1)
+            val_set = TensorDataset(val_data_repeat, y_val_repeat, S_val)
+        elif isinstance(data_loader, Dataset):
+            # Generate validation labels.
+            y_val = generate_labels_FL(
+                data_loader, original_model, validation_batch_size
+            )
+            y_val_repeat = y_val.repeat(
+                preferences.validation_samples, *[1 for _ in y_val.shape[1:]]
+            )
+
+            # Create dataset.
+            val_set = DatasetRepeat([data_loader, TensorDataset(y_val_repeat, S_val)])
+
+        else:
+            raise ValueError(
+                "val_data must be either tuple of tensors or a "
+                "PyTorch Dataset but got ",
+                type(data_loader),
+            )
+
+        data_loader = DataLoader(val_set, batch_size=validation_batch_size)
+
+        with torch.no_grad():
+            # Setup.
+            device = next(surrogate.surrogate.parameters()).device
+            mean_loss = 0
+            N = 0
+            correct = 0
+
+            for x, _, _, y, S in data_loader:
+                S = torch.ones(x.shape[0], x.shape[1], dtype=torch.float32)
+                x = x.to(device)
+                y = y.to(device)
+                S = S.to(device)
+                pred = surrogate(x, S)
+                loss = loss_fn(pred, y)
+                N += len(x)
+                mean_loss += len(x) * (loss - mean_loss) / N
+                correct += (pred.argmax(dim=1) == y.argmax(dim=1)).sum().item()
+
+        mean_loss = (
+            mean_loss.item() if isinstance(mean_loss, torch.Tensor) else mean_loss
+        )
+        return mean_loss, correct / N
+
+
 def validate(surrogate, loss_fn, data_loader):
     """
     Calculate mean validation loss.
@@ -33,6 +108,7 @@ def validate(surrogate, loss_fn, data_loader):
         correct = 0
 
         for x, y, S in data_loader:
+            S = torch.ones(x.shape[0], x.shape[1], dtype=torch.float32)
             x = x.to(device)
             y = y.to(device)
             S = S.to(device)
@@ -64,6 +140,31 @@ def generate_labels(dataset, model, batch_size):
         loader = DataLoader(dataset, batch_size=batch_size)
 
         for (x,) in loader:
+            pred = model(x.to(device)).cpu()
+            preds.append(pred)
+
+    return torch.cat(preds)
+
+
+def generate_labels_FL(dataset, model, batch_size):
+    """
+    Generate prediction labels for a set of inputs.
+
+    Args:
+      dataset: dataset object.
+      model: predictive model.
+      batch_size: minibatch size.
+    """
+    with torch.no_grad():
+        # Setup.
+        preds = []
+        if isinstance(model, torch.nn.Module):
+            device = next(model.parameters()).device
+        else:
+            device = torch.device("cpu")
+        loader = DataLoader(dataset, batch_size=batch_size)
+
+        for x, _, _ in loader:
             pred = model(x.to(device)).cpu()
             preds.append(pred)
 
@@ -560,3 +661,63 @@ class SurrogateDP:
             S = torch.mm(S, self.groups_matrix)
 
         return self.surrogate((x, S))
+
+    # Functions for cross-device FL training
+    def train_original_model_FL(
+        self,
+        original_model,
+        batch_size,
+        max_epochs,
+        loss_fn,
+        train_loader,
+        random_sampler,
+        batch_sampler,
+        lr=1e-3,
+        training_seed=None,
+        bar=False,
+        verbose=False,
+        optimizer=None,
+    ):
+        """ """
+        if not optimizer:
+            raise ValueError("optimizer must be provided")
+
+        # Set up validation dataset.
+        sampler = UniformSampler(self.num_players)
+
+        # Setup for training.
+        surrogate = self.surrogate
+        device = next(surrogate.parameters()).device
+
+        if training_seed is not None:
+            torch.manual_seed(training_seed)
+        MAX_PHYSICAL_BATCH_SIZE = 512
+
+        for epoch in range(max_epochs):
+            with BatchMemoryManager(
+                data_loader=train_loader,
+                max_physical_batch_size=MAX_PHYSICAL_BATCH_SIZE,
+                optimizer=optimizer,
+            ) as memory_safe_data_loader:
+                # Batch iterable.
+                batch_iter = memory_safe_data_loader
+
+                for x, _, _ in batch_iter:
+                    # Prepare data.
+                    x = x.to(device)
+
+                    # Get original model prediction.
+                    with torch.no_grad():
+                        y = original_model(x)
+
+                    # Generate the mask that is used to mask the features.
+                    # of the training dataset
+                    S = sampler.sample(x.shape[0]).to(device=device)
+                    # Make predictions.
+                    pred = self.__call__(x, S)
+                    loss = loss_fn(pred, y)
+
+                    # Optimizer step.
+                    loss.backward()
+                    optimizer.step()
+                    optimizer.zero_grad()

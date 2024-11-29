@@ -36,6 +36,19 @@ def setup_data(train_data, batch_size):
     return train_loader, random_sampler, batch_sampler
 
 
+def setup_data_FL(train_data, batch_size):
+    # Set up train data loader.
+    random_sampler = RandomSampler(
+        train_data,
+        replacement=True,
+        num_samples=int(np.ceil(len(train_data) / batch_size)) * batch_size,
+    )
+    batch_sampler = BatchSampler(random_sampler, batch_size=batch_size, drop_last=True)
+    kwargs = {"num_workers": 0, "pin_memory": True, "drop_last": False}
+    train_loader = DataLoader(train_data, batch_sampler=batch_sampler, **kwargs)
+    return train_loader, random_sampler, batch_sampler
+
+
 class MaskLayer1d(nn.Module):
     """
     Masking for 1d inputs.

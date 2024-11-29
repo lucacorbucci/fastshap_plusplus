@@ -18,8 +18,11 @@ run_sweep_and_agent () {
   poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 100
 }
 
-run_sweep_and_agent "NO_DP"
-# run_sweep_and_agent "DP_1"
-# run_sweep_and_agent "DP_2"
-#run_sweep_and_agent "DP_3"
-#run_sweep_and_agent "DP_4"
+# run_sweep_and_agent "NO_DP"
+run_sweep_and_agent "DP_1"
+run_sweep_and_agent "DP_2"
+run_sweep_and_agent "DP_3"
+run_sweep_and_agent "DP_4"
+run_sweep_and_agent "DP_5"
+
+

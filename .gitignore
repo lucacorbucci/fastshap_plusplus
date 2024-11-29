@@ -115,3 +115,24 @@ fl_puf/temp_output.txt
 *.pt
 
 
+data/
+wandb/
+.env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pkl
+*.png
+*.csv
+analysis_DPL.py
+logs/
+*.tar.gz
+*.whl
+federated/
+metadata.json
+train.pt
+dataset/
+test_ds
+train_ds
+*.pth
+elia/

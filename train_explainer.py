@@ -243,44 +243,46 @@ if __name__ == "__main__":
         link=nn.Softmax(dim=-1),
     )
 
-    # Train
-    fastshap.train(
-        train_loader,
-        val_loader,
-        grand_train,
-        grand_val,
-        null,
-        batch_size=args.batch_size,
-        num_samples=args.num_samples,
-        lr=args.lr,
-        max_epochs=args.epochs,
-        validation_samples=args.validation_samples,
-        verbose=True,
-        optimizer=optimizer,
-        wandb=wandb,
-        sampler=sampler,
-        bar=True,
-        eff_lambda=args.eff_lambda,
-        paired_sampling=args.paired_sampling,
-        image_dataset=image_dataset,
-    )
+    print(null.shape)
 
-    if args.save_model:
-        checkpoint = {
-            "state_dict": fastshap.explainer.state_dict(),
-            "optimizer": optimizer.state_dict(),
-        }
-        torch.save(
-            checkpoint,
-            f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_1.pth",
-        )
+    # # Train
+    # fastshap.train(
+    #     train_loader,
+    #     val_loader,
+    #     grand_train,
+    #     grand_val,
+    #     null,
+    #     batch_size=args.batch_size,
+    #     num_samples=args.num_samples,
+    #     lr=args.lr,
+    #     max_epochs=args.epochs,
+    #     validation_samples=args.validation_samples,
+    #     verbose=True,
+    #     optimizer=optimizer,
+    #     wandb=wandb,
+    #     sampler=sampler,
+    #     bar=True,
+    #     eff_lambda=args.eff_lambda,
+    #     paired_sampling=args.paired_sampling,
+    #     image_dataset=image_dataset,
+    # )
 
-        torch.save(
-            fastshap.explainer.state_dict(),
-            f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_3.pth",
-        )
+    # if args.save_model:
+    #     checkpoint = {
+    #         "state_dict": fastshap.explainer.state_dict(),
+    #         "optimizer": optimizer.state_dict(),
+    #     }
+    #     torch.save(
+    #         checkpoint,
+    #         f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_1.pth",
+    #     )
 
-        torch.save(
-            fastshap.explainer,
-            f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_2.pth",
-        )
+    #     torch.save(
+    #         fastshap.explainer.state_dict(),
+    #         f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_3.pth",
+    #     )
+
+    #     torch.save(
+    #         fastshap.explainer,
+    #         f"../../artifacts/{args.dataset_name}/explainer/{args.model_name}_2.pth",
+    #     )

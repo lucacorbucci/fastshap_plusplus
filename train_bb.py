@@ -113,6 +113,8 @@ def train_model(
             test_acc = eval_model(model, test_loader, device)
             wandb_run.log({"test_accuracy": test_acc, "epoch": epoch})
 
+    return model
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -199,7 +201,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    train_model(
+    model = train_model(
         model,
         optimizer,
         train_loader,

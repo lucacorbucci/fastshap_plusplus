@@ -13,8 +13,6 @@ parameters:
   lr:
     min: 0.0001
     max: 0.1
-  optimizer:
-    values: ["adam", "sgd"]
   validation_samples:
     min: 16
     max: 48
@@ -27,8 +25,6 @@ parameters:
   eff_lambda:
     min: 0.0
     max: 1.0
-  paired_sampling:
-    values: [True, False]
     
 command:
   - ${env}
@@ -47,5 +43,9 @@ command:
   - 5.0
   - --dataset_name
   - mnist 
+  - --paired_sampling
+  - True
   - --epochs
   - 20
+  - --optimizer 
+  - adam

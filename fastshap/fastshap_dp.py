@@ -132,6 +132,51 @@ def calculate_grand_coalition(
     return grand
 
 
+def calculate_grand_coalition_FL(
+    dataset,
+    imputer,
+    batch_size,
+    link,
+    device,
+    num_workers,
+    num_features,
+    image_dataset,
+):
+    """
+    Calculate the value of grand coalition for each input.
+
+    Args:
+      dataset: dataset object.
+      imputer: imputer model.
+      batch_size: minibatch size.
+      num_players: number of players.
+      link: link function.
+      device: torch device.
+      num_workers: number of worker threads.
+    """
+    ones = torch.ones(batch_size, num_features, dtype=torch.float32, device=device)
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=num_workers,
+    )
+
+    with torch.no_grad():
+        grand = []
+        for x, _, _ in loader:
+            output = imputer(x.to(device), ones[: len(x)].to(device))
+            grand.append(link(output))
+
+        # Concatenate and return.
+        grand = torch.cat(grand)
+        if len(grand.shape) == 1:
+            grand = grand.unsqueeze(1)
+
+    return grand
+
+
 def generate_validation_data(
     val_set,
     imputer,
@@ -185,7 +230,9 @@ def generate_validation_data(
     return val_S, val_values
 
 
-def validate(val_loader, imputer, explainer, null, link, normalization, num_players):
+def validate(
+    val_loader, imputer, explainer, null, link, normalization, num_players, device
+):
     """
     Calculate mean validation loss.
 
@@ -199,7 +246,6 @@ def validate(val_loader, imputer, explainer, null, link, normalization, num_play
     """
     with torch.no_grad():
         # Setup.
-        device = next(explainer.parameters()).device
         mean_loss = 0
         N = 0
         loss_fn = nn.MSELoss()
@@ -482,3 +528,127 @@ class FastSHAP:
             )
 
         return pred.cpu().data.numpy()
+
+    def train_FL(
+        self,
+        train_loader,
+        grand_train,
+        null,
+        batch_size,
+        num_samples,
+        max_epochs,
+        lr=2e-4,
+        min_lr=1e-5,
+        lr_factor=0.5,
+        eff_lambda=0,
+        paired_sampling=True,
+        lookback=5,
+        training_seed=None,
+        num_workers=0,
+        bar=False,
+        verbose=False,
+        optimizer=None,
+        sampler=None,
+        image_dataset=False,
+        device=None,
+    ):
+        """
+        Train explainer model.
+
+        Args:
+          train_data: training data with inputs only (np.ndarray, torch.Tensor,
+            torch.utils.data.Dataset).
+          val_data: validation data with inputs only (np.ndarray, torch.Tensor,
+            torch.utils.data.Dataset).
+          batch_size: minibatch size.
+          num_samples: number of training samples.
+          max_epochs: max number of training epochs.
+          lr: initial learning rate.
+          min_lr: minimum learning rate.
+          lr_factor: learning rate decrease factor.
+          eff_lambda: lambda hyperparameter for efficiency penalty.
+          paired_sampling: whether to use paired sampling.
+          validation_samples: number of samples per validation example.
+          lookback: lookback window for early stopping.
+          training_seed: random seed for training.
+          validation_seed: random seed for generating validation data.
+          num_workers: number of worker threads in data loader.
+          bar: whether to show progress bar.
+          verbose: verbosity.
+        """
+        # Set up explainer model.
+        explainer = self.explainer
+        num_players = self.num_players
+        imputer = self.imputer
+        link = self.link
+        normalization = self.normalization
+        explainer.train()
+        self.null = null
+
+        # Setup for training.
+        loss_fn = nn.MSELoss()
+        self.loss_list = []
+        if training_seed is not None:
+            torch.manual_seed(training_seed)
+        MAX_PHYSICAL_BATCH_SIZE = 512
+        for epoch in tqdm(range(max_epochs), desc="Training epoch"):
+            with BatchMemoryManager(
+                data_loader=train_loader,
+                max_physical_batch_size=MAX_PHYSICAL_BATCH_SIZE,
+                optimizer=optimizer,
+            ) as memory_safe_data_loader:
+                # Batch iterable.
+                batch_iter = memory_safe_data_loader
+
+                for x, _, _, grand in batch_iter:
+                    # Sample S.
+                    random_batch_size = x.shape[0]
+                    S = sampler.sample(
+                        random_batch_size * num_samples, paired_sampling=paired_sampling
+                    )
+
+                    # Move to device.
+                    x = x.to(device)
+                    S = S.to(device)
+                    grand = grand.to(device)
+
+                    # Evaluate value function.
+                    x_tiled = (
+                        x.unsqueeze(1)
+                        .repeat(1, num_samples, *[1 for _ in range(len(x.shape) - 1)])
+                        .reshape(random_batch_size * num_samples, *x.shape[1:])
+                    )
+
+                    with torch.no_grad():
+                        values = link(imputer(x_tiled, S))
+
+                    # Evaluate explainer.
+                    pred, total = evaluate_explainer(
+                        explainer, normalization, x, grand, null, num_players
+                    )
+
+                    # Calculate loss.
+                    S = S.reshape(random_batch_size, num_samples, num_players)
+                    values = values.reshape(random_batch_size, num_samples, -1)
+                    matm = torch.matmul(S, pred)
+
+                    # if image_dataset:
+                    #     print("Shape: ", null.shape, matm.shape, pred.shape, S.shape)
+                    #     sys.exit()
+                    approx = null + matm  # torch.matmul(S, pred)
+
+                    loss = loss_fn(approx, values)
+                    if eff_lambda:
+                        loss = loss + eff_lambda * loss_fn(total, grand - null)
+
+                    # Take gradient step.
+                    loss = loss * num_players
+
+                    loss.backward()
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+        # # Copy best model.
+        # for param, best_param in zip(explainer.parameters(), best_model.parameters()):
+        #     param.data = best_param.data
+        explainer.eval()
