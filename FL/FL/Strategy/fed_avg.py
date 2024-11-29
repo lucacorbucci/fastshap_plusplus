@@ -314,6 +314,8 @@ class FedAvg(Strategy):
             )
             if self.preferences.train_surrogate:
                 model = Utils.get_surrogate_model(self.preferences.dataset, 12)
+            elif self.preferences.train_explainer:
+                model = Utils.get_explainer_model(self.preferences.dataset, 12)
             else:
                 model = Utils.get_model(
                     self.preferences.dataset, device=self.preferences.device

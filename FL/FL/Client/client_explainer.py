@@ -19,19 +19,14 @@ from Utils.utils import Utils
 
 from fastshap.fastshap_dp import (
     FastSHAP,
-    calculate_grand_coalition,
     calculate_grand_coalition_FL,
-    generate_validation_data,
-    validate,
+    generate_validation_data_FL,
+    validate_FL,
 )
-from fastshap.surrogate_dp import SurrogateDP, validate_FL
+from fastshap.surrogate_dp import SurrogateDP
 from fastshap.utils import (
-    DatasetInputOnly,
     DatasetRepeat,
-    KLDivLoss,
     ShapleySampler,
-    setup_data,
-    setup_data_FL,
 )
 
 
@@ -43,16 +38,6 @@ def load_model(model_name):
     return model
 
 
-def get_tabular_explainer(num_features):
-    return nn.Sequential(
-        nn.Linear(num_features, 128),
-        nn.ReLU(inplace=True),
-        nn.Linear(128, 128),
-        nn.ReLU(inplace=True),
-        nn.Linear(128, 2 * num_features),
-    )
-
-
 def prepare_dataset_for_explainer_FL(
     train_data,
     batch_size,
@@ -62,6 +47,9 @@ def prepare_dataset_for_explainer_FL(
     device,
     num_players,
     image_dataset=False,
+    validation=False,
+    validation_seed=None,
+    validation_samples=None,
 ):
     # Set up train dataset.
     if isinstance(train_data, np.ndarray):
@@ -93,16 +81,9 @@ def prepare_dataset_for_explainer_FL(
         zeros = torch.zeros(1, num_players, dtype=torch.float32, device=device)
 
         input_data = torch.tensor(train_set[0][0]).unsqueeze(0).to(device)
-        print(
-            "input_data: ",
-            input_data,
-            "shape",
-            input_data.shape,
-            "zero shape: ",
-            zeros.shape,
-        )
+
         # null = link(imputer(train_set[0][0].unsqueeze(0).to(device), zeros))
-        null = link(input_data, zeros)
+        null = link(imputer(input_data, zeros))
         if len(null.shape) == 1:
             null = null.reshape(1, 1)
 
@@ -119,6 +100,36 @@ def prepare_dataset_for_explainer_FL(
 
     # Generate validation data.
     sampler = ShapleySampler(num_players)
+
+    if validation:
+        # Generate validation data.
+        sampler = ShapleySampler(num_players)
+        if validation_seed is not None:
+            torch.manual_seed(validation_seed)
+        train_S, train_values = generate_validation_data_FL(
+            train_set,
+            imputer,
+            validation_samples,
+            sampler,
+            batch_size * num_samples,
+            link,
+            device,
+            num_workers,
+            num_players,
+            image_dataset,
+        )
+
+        # Set up val loader.
+        train_set = DatasetRepeat(
+            [train_set, TensorDataset(grand_train, train_S, train_values)]
+        )
+        train_loader = DataLoader(
+            train_set,
+            batch_size=batch_size * num_samples,
+            pin_memory=True,
+            num_workers=num_workers,
+        )
+        return train_loader, grand_train, null, sampler
 
     print("Dataset ready for the explainer")
     return train_loader, grand_train, null, sampler
@@ -172,17 +183,19 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             partition="train",
         )
 
-        train_loader, grand_train, null, sampler = prepare_dataset_for_explainer_FL(
-            train_data=dataset,
-            batch_size=self.preferences.batch_size,
-            imputer=surrogate,
-            num_samples=len(dataset),
-            link=nn.Softmax(dim=-1),
-            device=self.preferences.device,
-            num_players=num_features,
+        original_train_loader, grand_train, null, sampler = (
+            prepare_dataset_for_explainer_FL(
+                train_data=dataset,
+                batch_size=self.preferences.batch_size,
+                imputer=surrogate,
+                num_samples=len(dataset),
+                link=nn.Softmax(dim=-1),
+                device=self.preferences.device,
+                num_players=num_features,
+            )
         )
 
-        self.delta = 1 / len(train_loader.dataset)
+        self.delta = 1 / len(original_train_loader.dataset)
 
         loaded_privacy_engine = None
 
@@ -203,14 +216,16 @@ class FlowerExplainerClient(fl.client.NumPyClient):
                     self.original_epsilon = self.preferences.epsilon
                     self.preferences.epsilon = None
             else:
-                noise = self.get_noise(dataset=train_loader)
+                noise = self.get_noise(dataset=original_train_loader)
                 with open(f"{self.fed_dir}/noise_level_{self.cid}.pkl", "wb") as file:
                     dill.dump(noise, file)
                 self.noise_multiplier = noise
                 self.original_epsilon = self.preferences.epsilon
                 self.preferences.epsilon = None
 
-        self.net = get_tabular_explainer(num_features=num_features)
+        self.net = Utils.get_explainer_model(
+            dataset_name=self.preferences.dataset, num_features=num_features
+        )
 
         Utils.set_params(self.net, parameters)
 
@@ -227,7 +242,7 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             model=self.net,
             preferences=self.preferences,
             original_optimizer=self.optimizer,
-            train_loader=train_loader,
+            train_loader=original_train_loader,
             delta=self.delta,
             noise_multiplier=self.noise_multiplier,
             accountant=loaded_privacy_engine,
@@ -246,7 +261,7 @@ class FlowerExplainerClient(fl.client.NumPyClient):
 
         gc.collect()
 
-        fastshap.train_FL(
+        train_loss = fastshap.train_FL(
             train_loader,
             grand_train,
             null,
@@ -263,31 +278,18 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             device=self.preferences.device,
         )
 
-        Utils.set_params(self.net, Utils.get_params(surrogate.surrogate))
-
-        train_loss = validate(
-            val_loader=train_loader,
-            imputer=surrogate,
-            explainer=fastshap,
-            null=null,
-            link=nn.Softmax(dim=-1),
-            normalization="none",
-            num_players=num_features,
-            device=self.preferences.device,
-        )
-
         del private_explainer
         gc.collect()
 
         # Return local model and statistics
         return (
-            Utils.get_params(surrogate.surrogate),
+            Utils.get_params(fastshap.explainer),
             len(train_loader.dataset),
             {
                 # "train_losses": all_losses,
                 "train_loss": train_loss,
                 "cid": self.cid,
-                "surrogate": True,
+                "explainer": True,
             },
         )
 
@@ -298,7 +300,9 @@ class FlowerExplainerClient(fl.client.NumPyClient):
 
         surrogate = SurrogateDP(surrogate_model, num_features)
 
-        self.net = get_tabular_explainer(num_features=num_features)
+        self.net = Utils.get_explainer_model(
+            dataset_name=self.preferences.dataset, num_features=num_features
+        )
 
         Utils.set_params(self.net, parameters)
         print("Evaluating... on client", self.cid)
@@ -323,6 +327,9 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             link=nn.Softmax(dim=-1),
             device=self.preferences.device,
             num_players=num_features,
+            validation=True,
+            validation_seed=self.preferences.seed,
+            validation_samples=self.preferences.validation_samples,
         )
 
         print(
@@ -341,32 +348,35 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             explainer=self.net,
             imputer=surrogate,
             num_features=num_features,
-            normalization="none",
+            normalization=None,
             link=nn.Softmax(dim=-1),
         )
 
-        loss = validate(
+        loss = validate_FL(
             val_loader=train_loader,
             imputer=surrogate,
-            explainer=fastshap_model,
+            explainer=fastshap_model.explainer,
             null=null,
             link=nn.Softmax(dim=-1),
-            normalization="none",
+            normalization=None,
             num_players=num_features,
             device=self.preferences.device,
+            FL_evaluation=True,
+            num_samples=len(dataset),
+            eff_lambda=self.preferences.eff_lambda,
         )
 
         if partition == "validation":
             metrics = {
                 "validation_loss": loss,
                 "cid": self.cid,
-                "surrogate": True,
+                "explainer": True,
             }
         elif partition == "test":
             metrics = {
                 "test_loss": loss,
                 "cid": self.cid,
-                "surrogate": True,
+                "explainer": True,
             }
         else:
             raise ValueError("Partition not found")
@@ -384,7 +394,7 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             self.preferences.dataset, device=self.preferences.device
         )
         privacy_engine = PrivacyEngine(accountant="rdp")
-        optimizer_noise = Utils.get_optimizer(model_noise, self.preferences, self.lr)
+        optimizer_noise = Utils.get_optimizer(model_noise, self.preferences)
         (
             _,
             private_optimizer,
@@ -398,7 +408,7 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             if target_epsilon is None
             else target_epsilon,
             target_delta=self.delta,
-            max_grad_norm=self.clipping,
+            max_grad_norm=self.preferences.clipping,
         )
 
         return private_optimizer.noise_multiplier

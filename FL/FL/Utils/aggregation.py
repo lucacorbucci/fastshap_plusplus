@@ -32,6 +32,18 @@ class Aggregation:
                 "Test_Fidelity": fidelity_evaluation,
                 "FL Round": server_round,
             }
+        elif "explainer" in metrics[0][1]:
+            loss_test = (
+                sum(
+                    [n_examples * metric["test_loss"] for n_examples, metric in metrics]
+                )
+                / total_examples
+            )
+
+            agg_metrics = {
+                "Test Loss": loss_test,
+                "FL Round": server_round,
+            }
         else:
             loss_test = (
                 sum([n_examples * metric["loss"] for n_examples, metric in metrics])
@@ -90,6 +102,21 @@ class Aggregation:
                 "Validation_Fidelity": fidelity_evaluation,
                 "FL Round": server_round,
             }
+        elif "explainer" in metrics[0][1]:
+            loss_evaluation = (
+                sum(
+                    [
+                        n_examples * metric["validation_loss"]
+                        for n_examples, metric in metrics
+                    ]
+                )
+                / total_examples
+            )
+
+            agg_metrics = {
+                "validation_loss": loss_evaluation,
+                "FL Round": server_round,
+            }
         else:
             loss_evaluation = (
                 sum([n_examples * metric["loss"] for n_examples, metric in metrics])
@@ -122,6 +149,7 @@ class Aggregation:
         losses_with_regularization = []
         accuracies = []
         surrogate = False
+        explainer = False
         fidelity_list = []
         for n_examples, node_metrics in metrics:
             if "surrogate" in node_metrics:
@@ -129,7 +157,10 @@ class Aggregation:
                 losses.append(n_examples * node_metrics["train_loss"])
                 fidelity_list.append(n_examples * node_metrics["train_fidelity"])
                 client_id = node_metrics["cid"]
-
+            elif "explainer" in node_metrics:
+                explainer = True
+                losses.append(n_examples * node_metrics["train_loss"])
+                client_id = node_metrics["cid"]
             else:
                 losses.append(n_examples * node_metrics["train_loss"])
                 accuracies.append(n_examples * node_metrics["train_accuracy"])
@@ -154,6 +185,11 @@ class Aggregation:
             agg_metrics = {
                 "Train Loss": sum(losses) / total_examples,
                 "Train Fidelity": sum(fidelity_list) / total_examples,
+                "FL Round": server_round,
+            }
+        elif explainer:
+            agg_metrics = {
+                "Train Loss": sum(losses) / total_examples,
                 "FL Round": server_round,
             }
         else:

@@ -245,27 +245,27 @@ if __name__ == "__main__":
 
     print(null.shape)
 
-    # # Train
-    # fastshap.train(
-    #     train_loader,
-    #     val_loader,
-    #     grand_train,
-    #     grand_val,
-    #     null,
-    #     batch_size=args.batch_size,
-    #     num_samples=args.num_samples,
-    #     lr=args.lr,
-    #     max_epochs=args.epochs,
-    #     validation_samples=args.validation_samples,
-    #     verbose=True,
-    #     optimizer=optimizer,
-    #     wandb=wandb,
-    #     sampler=sampler,
-    #     bar=True,
-    #     eff_lambda=args.eff_lambda,
-    #     paired_sampling=args.paired_sampling,
-    #     image_dataset=image_dataset,
-    # )
+    # Train
+    fastshap.train(
+        train_loader,
+        val_loader,
+        grand_train,
+        grand_val,
+        null,
+        batch_size=args.batch_size,
+        num_samples=args.num_samples,
+        lr=args.lr,
+        max_epochs=args.epochs,
+        validation_samples=args.validation_samples,
+        verbose=True,
+        optimizer=optimizer,
+        wandb=wandb,
+        sampler=sampler,
+        bar=True,
+        eff_lambda=args.eff_lambda,
+        paired_sampling=args.paired_sampling,
+        image_dataset=image_dataset,
+    )
 
     # if args.save_model:
     #     checkpoint = {

@@ -1,8 +1,8 @@
 program: ../../main.py
 method: bayes
 metric:
-  name: Validation_Accuracy
-  goal: maximize
+  name: validation_loss
+  goal: minimize
 early_terminate:
   type: hyperband
   min_iter: 5
@@ -18,11 +18,21 @@ parameters:
     max: 0.1
   optimizer:
     values: ["adam", "sgd"]
-  clipping: 
+  validation_samples:
+    min: 5
+    max: 10
+  validation_batch_size:
+    min: 1000
+    max: 10000
+  eff_lambda:
+    min: 0.0
+    max: 1.0
+  paired_sampling:
+    values: [True, False]
+  clipping:
     min: 1.0
     max: 20.0
-
-
+    
 command:
   - ${env}
   - poetry 
@@ -64,11 +74,13 @@ command:
   - 0.2
   - --device
   - cuda
-  - --cross_device
-  - True
   - --split_approach
   - non_iid
   - --alpha_dirichlet
   - 5.0
+  - --train_explainer
+  - True
+  - --surrogate_name 
+  - ./dutch_surrogate_NO_DP.pth
   - --epsilon
   - 1.0

@@ -230,6 +230,59 @@ def generate_validation_data(
     return val_S, val_values
 
 
+def generate_validation_data_FL(
+    val_set,
+    imputer,
+    validation_samples,
+    sampler,
+    batch_size,
+    link,
+    device,
+    num_workers,
+    num_players,
+    image_dataset,
+):
+    """
+    Generate coalition values for validation dataset.
+
+    Args:
+      val_set: validation dataset object.
+      imputer: imputer model.
+      validation_samples: number of samples per validation example.
+      sampler: Shapley sampler.
+      batch_size: minibatch size.
+      link: link function.
+      device: torch device.
+      num_workers: number of worker threads.
+    """
+    # Generate coalitions.
+    val_S = sampler.sample(
+        validation_samples * len(val_set), paired_sampling=True
+    ).reshape(len(val_set), validation_samples, num_players)
+
+    # Get values.
+    val_values = []
+    for i in range(validation_samples):
+        # Set up data loader.
+        dset = DatasetRepeat([val_set, TensorDataset(val_S[:, i])])
+        loader = DataLoader(
+            dset,
+            batch_size=batch_size,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=num_workers,
+        )
+        values = []
+
+        for x, _, _, _, S in loader:
+            values.append(link(imputer(x.to(device), S.to(device))).cpu().data)
+
+        val_values.append(torch.cat(values))
+
+    val_values = torch.stack(val_values, dim=1)
+    return val_S, val_values
+
+
 def validate(
     val_loader, imputer, explainer, null, link, normalization, num_players, device
 ):
@@ -263,7 +316,9 @@ def validate(
             )
 
             # Calculate loss.
-            approx = null + torch.matmul(S, pred)
+            print("Shapes: ", S.shape, pred.shape)
+            mul = torch.matmul(S, pred)
+            approx = null + mul
             loss = loss_fn(approx, values)
 
             # Update average.
@@ -271,6 +326,59 @@ def validate(
             mean_loss += len(x) * (loss - mean_loss) / N
 
     return mean_loss
+
+
+def validate_FL(
+    val_loader,
+    imputer,
+    explainer,
+    null,
+    link,
+    normalization,
+    num_players,
+    device,
+    FL_evaluation=False,
+    num_samples=None,
+    eff_lambda=None,
+):
+    """
+    Calculate mean validation loss.
+
+    Args:
+      val_loader: validation data loader.
+      imputer: imputer model.
+      explainer: explainer model.
+      null: null coalition value.
+      link: link function.
+      normalization: normalization function.
+    """
+    with torch.no_grad():
+        # Setup.
+        mean_loss = 0
+        N = 0
+        loss_fn = nn.MSELoss()
+
+        for x, _, _, _, grand, S, values in val_loader:
+            # Move to device.
+            x = x.to(device)
+            S = S.to(device)
+            grand = grand.to(device)
+            values = values.to(device)
+
+            # Evaluate explainer.
+            pred, total = evaluate_explainer(
+                explainer, normalization, x, grand, null, num_players
+            )
+
+            mul = torch.matmul(S, pred)
+            approx = null + mul
+            loss = loss_fn(approx, values)
+
+            # Update average.
+            N += len(x)
+            mean_loss += len(x) * (loss - mean_loss) / N
+
+    return mean_loss if isinstance(mean_loss, float) else mean_loss.item()
 
 
 class FastSHAP:
@@ -391,7 +499,7 @@ class FastSHAP:
         if training_seed is not None:
             torch.manual_seed(training_seed)
         MAX_PHYSICAL_BATCH_SIZE = 512
-        for epoch in tqdm(range(max_epochs), desc="Training epoch"):
+        for epoch in range(max_epochs):
             with BatchMemoryManager(
                 data_loader=train_loader,
                 max_physical_batch_size=MAX_PHYSICAL_BATCH_SIZE,
@@ -462,6 +570,7 @@ class FastSHAP:
                             link,
                             normalization,
                             num_players=self.num_players,
+                            device=device,
                         ).item()
                     )
                     wandb.log({"validation_loss": val_loss, "epoch": epoch})
@@ -591,7 +700,7 @@ class FastSHAP:
         if training_seed is not None:
             torch.manual_seed(training_seed)
         MAX_PHYSICAL_BATCH_SIZE = 512
-        for epoch in tqdm(range(max_epochs), desc="Training epoch"):
+        for epoch in range(max_epochs):
             with BatchMemoryManager(
                 data_loader=train_loader,
                 max_physical_batch_size=MAX_PHYSICAL_BATCH_SIZE,
@@ -647,8 +756,13 @@ class FastSHAP:
                     loss.backward()
                     optimizer.step()
                     optimizer.zero_grad()
+                    self.loss_list.append(loss.item())
 
         # # Copy best model.
         # for param, best_param in zip(explainer.parameters(), best_model.parameters()):
         #     param.data = best_param.data
         explainer.eval()
+
+        # return the average loss
+        mean_loss = np.mean(self.loss_list)
+        return mean_loss if isinstance(mean_loss, float) else mean_loss.item()

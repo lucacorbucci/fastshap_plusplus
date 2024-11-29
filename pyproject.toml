@@ -24,6 +24,7 @@ ray = "^2.12.0"
 matplotlib = "^3.9.2"
 nvitop = "^1.3.2"
 tqdm = "^4.67.1"
+aix360 = "^0.3.0"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.4"

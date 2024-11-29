@@ -361,14 +361,16 @@ class SimpleClientManager(ClientManager):
                     + len(self.training_clients_list)
                     + len(self.validation_clients_list),
                 )
+
             elif self.preferences.split_approach == "non_iid":
                 random.seed(self.seed)
                 random.shuffle(self.clients_list)
 
                 test_nodes = self.clients_list[: self.num_test_nodes]
-                self.clients_list = [
-                    node for node in self.clients_list if node not in test_nodes
-                ]
+                if self.preferences.cross_device:
+                    self.clients_list = [
+                        node for node in self.clients_list if node not in test_nodes
+                    ]
                 print("Nodes in the test set: ", test_nodes)
 
                 sampled_nodes_test, selected_test_nodes = self.pre_sample_clients(
@@ -387,11 +389,12 @@ class SimpleClientManager(ClientManager):
                     random.seed(self.node_shuffle_seed)
                     random.shuffle(self.clients_list)
                     validation_nodes = self.clients_list[: self.num_validation_nodes]
-                    self.clients_list = [
-                        node
-                        for node in self.clients_list
-                        if node not in validation_nodes
-                    ]
+                    if self.preferences.cross_device:
+                        self.clients_list = [
+                            node
+                            for node in self.clients_list
+                            if node not in validation_nodes
+                        ]
 
                     print("Nodes in the validation set: ", validation_nodes)
                     sampled_nodes_validation, selected_val_nodes = (

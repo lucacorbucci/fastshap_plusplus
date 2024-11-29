@@ -176,7 +176,6 @@ if __name__ == "__main__":
                 FederatedDataset.create_federated_dataset(
                     preferences, X, Y, Z, "train", distribution
                 )
-
         else:
             X, Z, Y = LoadDataset.load_dataset(preferences)
             X, Y, Z, X_test, y_test, z_test = Utils.split_train(

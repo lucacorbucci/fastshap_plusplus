@@ -448,14 +448,7 @@ def prepare_dataset_for_explainer(
     # Null coalition.
     with torch.no_grad():
         zeros = torch.zeros(1, num_players, dtype=torch.float32, device=device)
-        print(
-            "input_data: ",
-            train_set[0][0].unsqueeze(0),
-            "shape",
-            train_set[0][0].unsqueeze(0).shape,
-            "zerso shape ",
-            zeros.shape,
-        )
+
         null = link(imputer(train_set[0][0].unsqueeze(0).to(device), zeros))
 
         if len(null.shape) == 1:
