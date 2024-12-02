@@ -18,6 +18,11 @@ run_sweep_and_agent () {
   poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 30
 }
 
-run_sweep_and_agent "explainer_50_nodes_non_iid"
+
+
+run_sweep_and_agent "explainer_50_nodes_non_iid_DP_01"
+run_sweep_and_agent "explainer_50_nodes_non_iid_DP_05"
 run_sweep_and_agent "explainer_50_nodes_non_iid_DP_1"
-run_sweep_and_agent "explainer_50_nodes_non_iid_BB_DP"
+run_sweep_and_agent "explainer_50_nodes_non_iid_DP_2"
+run_sweep_and_agent "explainer_50_nodes_non_iid"
+run_sweep_and_agent "explainer_50_nodes_non_iid_DP_1000"
