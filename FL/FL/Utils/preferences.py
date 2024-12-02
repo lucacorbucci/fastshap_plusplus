@@ -54,6 +54,7 @@ class Preferences:
 
     save_local_models: bool = False
     save_aggregated_model: bool = False
+    aggregated_model_name: str = None
 
     test_size: float = None
 

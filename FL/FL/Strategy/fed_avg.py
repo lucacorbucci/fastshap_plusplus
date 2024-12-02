@@ -305,7 +305,11 @@ class FedAvg(Strategy):
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No fit_metrics_aggregation_fn provided")
 
-        if self.preferences.save_aggregated_model and parameters_aggregated is not None:
+        if (
+            self.preferences.save_aggregated_model
+            and parameters_aggregated is not None
+            and server_round == self.preferences.fl_rounds
+        ):
             log(INFO, f"Saving round {server_round} aggregated_parameters...")
 
             # Convert `Parameters` to `List[np.ndarray]`
@@ -330,12 +334,7 @@ class FedAvg(Strategy):
             # Save the model
             torch.save(
                 model,
-                f"{self.preferences.dataset_path}/models/aggregated_model_round_{server_round}.pth",
-            )
-
-            torch.save(
-                model.state_dict(),
-                f"{self.preferences.dataset_path}/models/aggregated_model_round_{server_round}_state_dict.pth",
+                f"{self.preferences.dataset_path}/models/{self.preferences.aggregated_model_name}.pth",
             )
 
         return parameters_aggregated, metrics_aggregated
