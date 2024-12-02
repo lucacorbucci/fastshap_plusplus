@@ -259,7 +259,7 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             link=nn.Softmax(dim=-1),
         )
 
-        gc.collect()
+        # gc.collect()
 
         train_loss = fastshap.train_FL(
             train_loader,
@@ -278,8 +278,11 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             device=self.preferences.device,
         )
 
-        del private_explainer
-        gc.collect()
+        with open(f"{self.fed_dir}/privacy_engine_{self.cid}.pkl", "wb") as f:
+            dill.dump(privacy_engine.accountant, f)
+
+        # del private_explainer
+        # gc.collect()
 
         # Return local model and statistics
         return (

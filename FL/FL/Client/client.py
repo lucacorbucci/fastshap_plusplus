@@ -157,6 +157,9 @@ class FlowerClient(fl.client.NumPyClient):
                 f"{self.preferences.dataset_path}/models/{self.cid}/model_node_{self.cid}_round_{current_fl_round}_state_dict.pth",
             )
 
+        with open(f"{self.fed_dir}/privacy_engine_{self.cid}.pkl", "wb") as f:
+            dill.dump(privacy_engine.accountant, f)
+
         del private_net
         gc.collect()
 

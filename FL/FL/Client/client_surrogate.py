@@ -163,6 +163,9 @@ class FlowerSurrogateClient(fl.client.NumPyClient):
             original_model=bb_model,
         )
 
+        with open(f"{self.fed_dir}/privacy_engine_{self.cid}.pkl", "wb") as f:
+            dill.dump(privacy_engine.accountant, f)
+
         del private_net
         gc.collect()
 

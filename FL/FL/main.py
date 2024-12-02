@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import signal
 import sys
 import time
@@ -84,6 +85,7 @@ parser.add_argument("--device", type=str, default="cuda")
 
 parser.add_argument("--save_local_models", type=bool, default=False)
 parser.add_argument("--save_aggregated_model", type=bool, default=False)
+parser.add_argument("--aggregated_model_name", type=str, default="model")
 
 parser.add_argument("--train_surrogate", type=bool, default=False)
 parser.add_argument("--bb_name", type=str, default=None)
@@ -109,6 +111,11 @@ if __name__ == "__main__":
         args.node_shuffle_seed = node_shuffle_seed
 
     print(args.node_shuffle_seed)
+
+    path_to_remove = os.listdir(f"{args.dataset_path}/federated/")
+    for item in path_to_remove:
+        if item.endswith(".pkl"):
+            os.remove(os.path.join(f"{args.dataset_path}/federated/", item))
 
     preferences = Preferences(
         dataset=args.dataset_name,
@@ -160,6 +167,7 @@ if __name__ == "__main__":
         surrogate_name=args.surrogate_name,
         paired_sampling=args.paired_sampling,
         eff_lambda=args.eff_lambda,
+        aggregated_model_name=args.aggregated_model_name,
     )
 
     Utils.seed_everything(args.seed)
