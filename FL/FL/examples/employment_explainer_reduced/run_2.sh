@@ -1,0 +1,4 @@
+
+# # DP 0.5  rifare
+poetry run python /home/lcorbucci/private_fastshap/FL/FL/examples/employment_explainer/../../main.py --batch_size=360 --clipping=1.3589951058058467 --eff_lambda=0.6832831178746669 --epochs=7 --lr=0.03862662889861459 --num_samples=21 --optimizer=sgd --paired_sampling=False --validation_samples=40 --dataset_name employment --fl_rounds 10 --num_client_cpus 1 --num_client_gpus 0.1 --tabular True --num_nodes 50 --sampled_training_nodes 0.225 --sampled_validation_nodes 0 --sampled_test_nodes 1 --dataset_path /raid/lcorbucci/folktables/employment/ --seed 42 --wandb True --split_approach non_iid --fraction_fit_nodes 0.8 --fraction_validation_nodes 0 --fraction_test_nodes 0.2 --device cuda --cross_device True --split_approach non_iid --alpha_dirichlet 5 --train_explainer True --surrogate_name ./surrogate_NO_DP.pth --epsilon 0.5 --splitted_data_dir federated  --save_aggregated_model True --aggregated_model_name explainer_DP_05
+

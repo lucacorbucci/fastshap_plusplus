@@ -1,4 +1,13 @@
+OLD/
+*.old
+*.new
+*.pth
+.env 
+dataset_preparation/
+artifacts/
+.ruff_cache/
 plots_data/
+wandb/
 plots_data_adult/
 *
 !*/

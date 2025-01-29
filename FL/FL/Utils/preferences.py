@@ -68,6 +68,7 @@ class Preferences:
     bb_name: str = None
 
     validation_samples: int = None
+    num_samples: int = None
     validation_batch_size: int = None
 
     surrogate_name: str = None

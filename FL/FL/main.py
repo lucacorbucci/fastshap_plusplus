@@ -8,12 +8,14 @@ from typing import Dict
 
 import flwr as fl
 import numpy as np
+import torch
 from Client.client import FlowerClient
 from Client.client_explainer import FlowerExplainerClient
 from Client.client_surrogate import FlowerSurrogateClient
 from ClientManager.client_manager import SimpleClientManager
 from Dataset.federated_dataset import FederatedDataset
 from Dataset.load_data import LoadDataset
+from Dataset.tabular_dataset import TabularDataset
 from flwr.common.typing import Scalar
 from Server.server import Server
 from Strategy.fed_avg import FedAvg
@@ -93,12 +95,13 @@ parser.add_argument("--bb_name", type=str, default=None)
 parser.add_argument("--train_explainer", type=bool, default=False)
 
 parser.add_argument("--validation_samples", type=int, default=None)
+parser.add_argument("--num_samples", type=int, default=None)
 parser.add_argument("--validation_batch_size", type=int, default=None)
 
 parser.add_argument("--eff_lambda", type=float, default=None)
 parser.add_argument("--paired_sampling", type=bool, default=None)
 parser.add_argument("--surrogate_name", type=str, default="cuda")
-
+parser.add_argument("--splitted_data_dir", type=str, default="federated")
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
@@ -112,10 +115,12 @@ if __name__ == "__main__":
 
     print(args.node_shuffle_seed)
 
-    path_to_remove = os.listdir(f"{args.dataset_path}/federated/")
+    path_to_remove = os.listdir(f"{args.dataset_path}/{args.splitted_data_dir}/")
     for item in path_to_remove:
         if item.endswith(".pkl"):
-            os.remove(os.path.join(f"{args.dataset_path}/federated/", item))
+            os.remove(
+                os.path.join(f"{args.dataset_path}/{args.splitted_data_dir}/", item)
+            )
 
     preferences = Preferences(
         dataset=args.dataset_name,
@@ -142,7 +147,7 @@ if __name__ == "__main__":
         else None,
         validation=True if args.validation_size is not None else False,
         validation_size=args.validation_size if args.validation_size else None,
-        fed_dir=f"{args.dataset_path}/federated/",
+        fed_dir=f"{args.dataset_path}/{args.splitted_data_dir}/",
         epsilon=args.epsilon,
         clipping=args.clipping,
         node_shuffle_seed=args.node_shuffle_seed,
@@ -168,6 +173,7 @@ if __name__ == "__main__":
         paired_sampling=args.paired_sampling,
         eff_lambda=args.eff_lambda,
         aggregated_model_name=args.aggregated_model_name,
+        num_samples=args.num_samples,
     )
 
     Utils.seed_everything(args.seed)
@@ -176,14 +182,40 @@ if __name__ == "__main__":
 
     if preferences.tabular:
         if preferences.cross_device:
-            X, Z, Y = LoadDataset.load_dataset(preferences)
-            if preferences.split_approach == "non_iid":
-                distribution = FederatedDataset.get_distribution(
-                    preferences=preferences
-                )
-                FederatedDataset.create_federated_dataset(
-                    preferences, X, Y, Z, "train", distribution
-                )
+            if preferences.dataset == "dutch":
+                X, Z, Y = LoadDataset.load_dataset(preferences)
+                if preferences.split_approach == "non_iid":
+                    distribution = FederatedDataset.get_distribution(
+                        preferences=preferences
+                    )
+                    FederatedDataset.create_federated_dataset(
+                        preferences, X, Y, Z, "train", distribution
+                    )
+            else:
+                for client_name in range(preferences.num_nodes):
+                    os.system(
+                        f"rm -rf {args.dataset_path}/{args.splitted_data_dir}/{client_name}/train.pt"
+                    )
+
+                    # open numpy arrays
+                    X = np.load(
+                        f"{args.dataset_path}/{args.splitted_data_dir}/{client_name}/{args.dataset_name}_dataframes_{client_name}.npy"
+                    )
+                    Y = np.load(
+                        f"{args.dataset_path}/{args.splitted_data_dir}/{client_name}/{args.dataset_name}_labels_{client_name}.npy"
+                    )
+                    Z = np.load(
+                        f"{args.dataset_path}/{args.splitted_data_dir}/{client_name}/{args.dataset_name}_groups_{client_name}.npy"
+                    )
+                    custom_dataset = TabularDataset(
+                        x=np.hstack((X, np.ones((X.shape[0], 1)))).astype(np.float32),
+                        z=[item.item() for item in Z],  # .astype(np.float32),
+                        y=[item.item() for item in Y],  # .astype(np.float32),
+                    )
+                    torch.save(
+                        custom_dataset,
+                        f"{args.dataset_path}/{args.splitted_data_dir}/{client_name}/train.pt",
+                    )
         else:
             X, Z, Y = LoadDataset.load_dataset(preferences)
             X, Y, Z, X_test, y_test, z_test = Utils.split_train(
@@ -229,10 +261,11 @@ if __name__ == "__main__":
         preferences.num_validation_nodes = int(args.num_nodes)
         preferences.num_test_nodes = int(args.num_nodes)
 
+    num_features = Utils.get_num_features(preferences.dataset)
     if preferences.train_surrogate:
-        model = Utils.get_surrogate_model(preferences.dataset, 12)
+        model = Utils.get_surrogate_model(preferences.dataset, num_features)
     elif preferences.train_explainer:
-        model = Utils.get_explainer_model(preferences.dataset, 12)
+        model = Utils.get_explainer_model(preferences.dataset, num_features)
     else:
         model = Utils.get_model(preferences.dataset, "cuda")
 

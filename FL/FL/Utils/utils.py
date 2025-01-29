@@ -82,6 +82,15 @@ class Utils:
         return X, y, z, X_split, y_split, z_split
 
     @staticmethod
+    def get_num_features(dataset_name):
+        if dataset_name == "dutch":
+            return 12
+        elif dataset_name == "income":
+            return 11
+        elif dataset_name == "employment":
+            return 17  # 85
+
+    @staticmethod
     def get_tabular_surrogate(num_features):
         return nn.Sequential(
             MaskLayer1d(value=0, append=True),
@@ -97,11 +106,19 @@ class Utils:
         # Create surrogate model
         if dataset_name == "dutch":
             return Utils.get_tabular_surrogate(num_features)
+        elif dataset_name == "income":
+            return Utils.get_tabular_surrogate(num_features)
+        elif dataset_name == "employment":
+            return Utils.get_tabular_surrogate(num_features)
 
     @staticmethod
     def get_explainer_model(dataset_name, num_features):
         # Create surrogate model
         if dataset_name == "dutch":
+            return Utils.get_tabular_explainer(num_features)
+        elif dataset_name == "income":
+            return Utils.get_tabular_explainer(num_features)
+        elif dataset_name == "employment":
             return Utils.get_tabular_explainer(num_features)
 
     @staticmethod
@@ -138,7 +155,13 @@ class Utils:
         elif dataset == "dutch":
             return LinearClassificationNetValerio(input_size=12, output_size=2)
         elif dataset == "income":
-            return LinearClassificationNet(input_size=54, output_size=2)
+            return LinearClassificationNet(input_size=11, output_size=2)
+        elif dataset == "travel_time":
+            return LinearClassificationNetValerio(input_size=124, output_size=2)
+        elif dataset == "acspublic_coverage":
+            return LinearClassificationNetValerio(input_size=123, output_size=2)
+        elif dataset == "employment":
+            return LinearClassificationNetValerio(input_size=17, output_size=2)
         elif dataset == "adult":
             return LinearClassificationNet(input_size=103, output_size=2)
         else:
@@ -306,6 +329,12 @@ class Utils:
         elif dataset == "compas":
             return torch.load(path_to_data)
         elif dataset == "income":
+            return torch.load(path_to_data)
+        elif dataset == "travel_time":
+            return torch.load(path_to_data)
+        elif dataset == "employment":
+            return torch.load(path_to_data)
+        elif dataset == "acspublic_coverage":
             return torch.load(path_to_data)
         else:
             return TorchVision_FL(

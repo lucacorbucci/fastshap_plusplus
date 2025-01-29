@@ -82,4 +82,3 @@ command:
   - True
   - --bb_name 
   - ./bb_DP_1.pth
-  

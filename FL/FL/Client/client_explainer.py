@@ -63,6 +63,8 @@ def prepare_dataset_for_explainer_FL(
         raise ValueError("train_data must be np.ndarray, torch.Tensor or " "Dataset")
 
     num_workers = 0
+    if num_samples is None:
+        num_samples = len(train_set)
 
     # Grand coalition value.
     grand_train = calculate_grand_coalition_FL(
@@ -165,7 +167,9 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             counter_sampling = dill.load(f)
             self.sampling_frequency = counter_sampling[str(self.cid)]
 
-        num_features = 12  # bb_model.num_features
+        num_features = Utils.get_num_features(
+            self.preferences.dataset
+        )  # bb_model.num_features
 
         # Load data for this client and get trainloader
         num_workers = int(ray.get_runtime_context().get_assigned_resources()["CPU"])
@@ -182,13 +186,15 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             dataset=self.preferences.dataset,
             partition="train",
         )
+        if self.preferences.num_samples is None:
+            self.preferences.num_samples = len(dataset)
 
         original_train_loader, grand_train, null, sampler = (
             prepare_dataset_for_explainer_FL(
                 train_data=dataset,
                 batch_size=self.preferences.batch_size,
                 imputer=surrogate,
-                num_samples=len(dataset),
+                num_samples=self.preferences.num_samples,
                 link=nn.Softmax(dim=-1),
                 device=self.preferences.device,
                 num_players=num_features,
@@ -259,14 +265,14 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             link=nn.Softmax(dim=-1),
         )
 
-        # gc.collect()
+        gc.collect()
 
         train_loss = fastshap.train_FL(
             train_loader,
             grand_train,
             null,
             batch_size=self.preferences.batch_size,
-            num_samples=len(dataset),
+            num_samples=self.preferences.num_samples,
             lr=self.preferences.learning_rate,
             max_epochs=self.preferences.epochs,
             verbose=True,
@@ -281,8 +287,8 @@ class FlowerExplainerClient(fl.client.NumPyClient):
         with open(f"{self.fed_dir}/privacy_engine_{self.cid}.pkl", "wb") as f:
             dill.dump(privacy_engine.accountant, f)
 
-        # del private_explainer
-        # gc.collect()
+        del private_explainer
+        gc.collect()
 
         # Return local model and statistics
         return (
@@ -299,7 +305,9 @@ class FlowerExplainerClient(fl.client.NumPyClient):
     def evaluate(self, parameters, config):
         surrogate_model = load_model(self.preferences.surrogate_name)
         surrogate_model = surrogate_model.to(self.preferences.device)
-        num_features = 12  # bb_model.num_features
+        num_features = Utils.get_num_features(
+            self.preferences.dataset
+        )  # bb_model.num_features
 
         surrogate = SurrogateDP(surrogate_model, num_features)
 
@@ -326,7 +334,7 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             train_data=dataset,
             batch_size=self.preferences.batch_size,
             imputer=surrogate,
-            num_samples=len(dataset),
+            num_samples=self.preferences.num_samples,
             link=nn.Softmax(dim=-1),
             device=self.preferences.device,
             num_players=num_features,
@@ -365,7 +373,7 @@ class FlowerExplainerClient(fl.client.NumPyClient):
             num_players=num_features,
             device=self.preferences.device,
             FL_evaluation=True,
-            num_samples=len(dataset),
+            num_samples=self.preferences.num_samples,
             eff_lambda=self.preferences.eff_lambda,
         )
 

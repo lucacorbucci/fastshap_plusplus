@@ -82,6 +82,11 @@ class FlowerSurrogateClient(fl.client.NumPyClient):
             with open(f"{self.fed_dir}/privacy_engine_{self.cid}.pkl", "rb") as file:
                 loaded_privacy_engine = dill.load(file)
 
+        num_features = Utils.get_num_features(
+            self.preferences.dataset
+        )  # bb_model.num_features
+        self.num_features = num_features
+
         if self.preferences.epsilon is None:
             self.noise_multiplier = 0
             self.original_epsilon = None
@@ -99,8 +104,6 @@ class FlowerSurrogateClient(fl.client.NumPyClient):
                 self.original_epsilon = self.preferences.epsilon
                 self.preferences.epsilon = None
 
-        num_features = 12  # bb_model.num_features
-        self.num_features = num_features
         self.net = Utils.get_surrogate_model(
             self.preferences.dataset, num_features=num_features
         )
@@ -187,7 +190,7 @@ class FlowerSurrogateClient(fl.client.NumPyClient):
         bb_model = nn.Sequential(bb_model, nn.Softmax(dim=1))
         bb_model = bb_model.to(self.preferences.device)
 
-        num_features = 12  # bb_model.num_features
+        num_features = Utils.get_num_features(self.preferences.dataset)
         self.net = Utils.get_surrogate_model(
             self.preferences.dataset, num_features=num_features
         )

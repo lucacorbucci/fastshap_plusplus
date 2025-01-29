@@ -1,4 +1,4 @@
-PROJECT_NAME="Federated_SHAP_Dutch" # swap out globally
+PROJECT_NAME="Federated_SHAP_Dutch_surrogate_NO_DP" # swap out globally
 
 run_sweep_and_agent () {
   # Set the SWEEP_NAME variable
@@ -15,14 +15,9 @@ run_sweep_and_agent () {
   rm temp_output.txt
   
   # Run the wandb agent command
-  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 30
+  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 100
 }
 
 
+run_sweep_and_agent "explainer_50_nodes_non_iid_DP_BB_surrogate_NO_DP"
 
-run_sweep_and_agent "explainer_50_nodes_non_iid_DP_01"
-run_sweep_and_agent "explainer_50_nodes_non_iid_DP_05"
-run_sweep_and_agent "explainer_50_nodes_non_iid_DP_1"
-run_sweep_and_agent "explainer_50_nodes_non_iid_DP_2"
-run_sweep_and_agent "explainer_50_nodes_non_iid"
-run_sweep_and_agent "explainer_50_nodes_non_iid_DP_1000"

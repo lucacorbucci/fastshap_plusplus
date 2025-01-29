@@ -15,8 +15,8 @@ run_sweep_and_agent () {
   rm temp_output.txt
   
   # Run the wandb agent command
-  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 30
+  poetry run wandb agent $SWEEP_ID --project "$PROJECT_NAME" --count 40
 }
 
 # run_sweep_and_agent "surrogate_50_nodes_non_iid"
-run_sweep_and_agent "surrogate_50_nodes_non_iid_DP_1"
+run_sweep_and_agent "surrogate_50_nodes_non_iid_NO_DP_bb_DP"

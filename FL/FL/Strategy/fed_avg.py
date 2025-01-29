@@ -316,10 +316,15 @@ class FedAvg(Strategy):
             aggregated_ndarrays: List[np.ndarray] = fl.common.parameters_to_ndarrays(
                 parameters_aggregated
             )
+            num_features = Utils.get_num_features(self.preferences.dataset)
             if self.preferences.train_surrogate:
-                model = Utils.get_surrogate_model(self.preferences.dataset, 12)
+                model = Utils.get_surrogate_model(
+                    self.preferences.dataset, num_features
+                )
             elif self.preferences.train_explainer:
-                model = Utils.get_explainer_model(self.preferences.dataset, 12)
+                model = Utils.get_explainer_model(
+                    self.preferences.dataset, num_features
+                )
             else:
                 model = Utils.get_model(
                     self.preferences.dataset, device=self.preferences.device
