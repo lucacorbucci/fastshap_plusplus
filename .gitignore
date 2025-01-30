@@ -1,4 +1,5 @@
 OLD/
+old_files/
 *.old
 *.new
 *.pth
@@ -137,7 +138,6 @@ analysis_DPL.py
 logs/
 *.tar.gz
 *.whl
-federated/
 metadata.json
 train.pt
 dataset/
@@ -145,3 +145,8 @@ test_ds
 train_ds
 *.pth
 elia/
+
+!datasets/
+!datasets/*/*.csv
+!datasets/*/*/*/*.pt
+!datasets/*/*/*/*.npy
