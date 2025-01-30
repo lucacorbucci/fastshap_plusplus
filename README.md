@@ -1,6 +1,6 @@
-# Private_fastshap test
+# Fastshap++ test
 
-How to use FedFastSHAP with Differential Privacy
+How to use Fastshap++ with Differential Privacy
 
 To execute the code and reproduce the results of the paper, follow the instructions below:
 
